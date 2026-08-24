@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
@@ -12,9 +12,30 @@ export default function ProductsPage() {
   const [costPrice, setCostPrice] = useState('')
   const [quantity, setQuantity] = useState('')
   const [message, setMessage] = useState('')
+  const [products, setProducts] = useState([])
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        id,
+        name,
+        price,
+        cost_price,
+        reorder_level,
+        branch_stock ( quantity )
+      `)
+      .eq('business_id', BUSINESS_ID)
+      .order('name')
+
+    if (!error) setProducts(data)
+  }
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
 
   const handleAddProduct = async () => {
-    // Step 1: create the product
     const { data: product, error: productError } = await supabase
       .from('products')
       .insert({
@@ -31,7 +52,6 @@ export default function ProductsPage() {
       return
     }
 
-    // Step 2: create the stock record for this branch
     const { error: stockError } = await supabase.from('branch_stock').insert({
       product_id: product.id,
       branch_id: BRANCH_ID,
@@ -43,15 +63,16 @@ export default function ProductsPage() {
       return
     }
 
-    setMessage(`✅ Added "${name}" with ${quantity} units in stock!`)
+    setMessage(`✅ Added "${name}"!`)
     setName('')
     setPrice('')
     setCostPrice('')
     setQuantity('')
+    fetchProducts()
   }
 
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '400px' }}>
+    <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
       <h1>Add Product</h1>
       <input
         type="text"
@@ -81,10 +102,39 @@ export default function ProductsPage() {
         onChange={(e) => setQuantity(e.target.value)}
         style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
       />
-      <button onClick={handleAddProduct} style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}>
+      <button
+        onClick={handleAddProduct}
+        style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
+      >
         Add Product
       </button>
       <p>{message}</p>
+
+      <h2 style={{ marginTop: '40px' }}>Your Products</h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+            <th style={{ padding: '8px' }}>Name</th>
+            <th style={{ padding: '8px' }}>Price</th>
+            <th style={{ padding: '8px' }}>Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((p) => {
+            const stock = p.branch_stock?.[0]?.quantity ?? 0
+            const lowStock = stock <= p.reorder_level
+            return (
+              <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '8px' }}>{p.name}</td>
+                <td style={{ padding: '8px' }}>KES {p.price}</td>
+                <td style={{ padding: '8px', color: lowStock ? 'red' : 'black' }}>
+                  {stock} {lowStock ? '⚠️ Low stock' : ''}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
