@@ -1,13 +1,25 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
+import { getCurrentAppUser } from '@/lib/auth'
 
 export default function DebtsPage() {
   const [debts, setDebts] = useState([])
   const [message, setMessage] = useState('')
+  const [authorized, setAuthorized] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    getCurrentAppUser().then((u) => {
+      if (!u || u.role !== 'owner') {
+        router.push('/checkout')
+        return
+      }
+      setAuthorized(true)
+    })
+  }, [])
 
   const fetchDebts = async () => {
     const { data, error } = await supabase
@@ -27,8 +39,8 @@ export default function DebtsPage() {
   }
 
   useEffect(() => {
-    fetchDebts()
-  }, [])
+    if (authorized) fetchDebts()
+  }, [authorized])
 
   const handleRecordPayment = async (debt) => {
     const remaining = debt.amount_owed - debt.amount_paid
@@ -58,6 +70,8 @@ export default function DebtsPage() {
   }
 
   const totalOutstanding = debts.reduce((sum, d) => sum + (d.amount_owed - d.amount_paid), 0)
+
+  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>

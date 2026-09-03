@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
@@ -13,6 +15,18 @@ export default function ProductsPage() {
   const [quantity, setQuantity] = useState('')
   const [message, setMessage] = useState('')
   const [products, setProducts] = useState([])
+  const [authorized, setAuthorized] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    getCurrentAppUser().then((u) => {
+      if (!u || u.role !== 'owner') {
+        router.push('/checkout')
+        return
+      }
+      setAuthorized(true)
+    })
+  }, [])
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -32,8 +46,8 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    fetchProducts()
-  }, [])
+    if (authorized) fetchProducts()
+  }, [authorized])
 
   const handleAddProduct = async () => {
     const { data: product, error: productError } = await supabase
@@ -70,6 +84,8 @@ export default function ProductsPage() {
     setQuantity('')
     fetchProducts()
   }
+
+  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
