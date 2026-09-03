@@ -1,18 +1,35 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
-const CASHIER_ID = '9630f4b4-5fcc-4ef3-9751-97b4a0790164'
 
 export default function CheckoutPage() {
   const [products, setProducts] = useState([])
-  const [cart, setCart] = useState([]) // { product_id, name, price, quantity, discount }
+  const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
   const [message, setMessage] = useState('')
   const [receipt, setReceipt] = useState(null)
+  const [authorized, setAuthorized] = useState(false)
+  const [cashierId, setCashierId] = useState(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    getCurrentAppUser().then((u) => {
+      if (!u) {
+        router.push('/login')
+        return
+      }
+      setCashierId(u.id)
+      setAuthorized(true)
+    })
+  }, [])
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -25,8 +42,8 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    fetchProducts()
-  }, [])
+    if (authorized) fetchProducts()
+  }, [authorized])
 
   const addToCart = (product) => {
     setCart((prev) => {
@@ -61,12 +78,17 @@ export default function CheckoutPage() {
       return
     }
 
+    if (paymentMethod === 'credit' && !customerName.trim()) {
+      setMessage('Please enter customer name for a credit sale.')
+      return
+    }
+
     const { data: sale, error: saleError } = await supabase
       .from('sales')
       .insert({
         business_id: BUSINESS_ID,
         branch_id: BRANCH_ID,
-        cashier_id: CASHIER_ID,
+        cashier_id: cashierId,
         total: total,
         payment_method: paymentMethod,
       })
@@ -108,17 +130,44 @@ export default function CheckoutPage() {
       }
     }
 
+    if (paymentMethod === 'credit') {
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .insert({
+          business_id: BUSINESS_ID,
+          name: customerName,
+          phone: customerPhone,
+        })
+        .select()
+        .single()
+
+      if (!customerError) {
+        await supabase.from('credit_accounts').insert({
+          sale_id: sale.id,
+          customer_id: customer.id,
+          amount_owed: total,
+          amount_paid: 0,
+          status: 'unpaid',
+        })
+      }
+    }
+
     setReceipt({
       items: cart,
       total,
       paymentMethod,
+      customerName,
       date: new Date().toLocaleString(),
       saleId: sale.id,
     })
     setMessage('')
     setCart([])
+    setCustomerName('')
+    setCustomerPhone('')
     fetchProducts()
   }
+
+  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   if (receipt) {
     return (
@@ -126,6 +175,7 @@ export default function CheckoutPage() {
         <h1>Receipt</h1>
         <p>{receipt.date}</p>
         <p>Sale ID: {receipt.saleId.slice(0, 8)}</p>
+        {receipt.customerName && <p>Customer: {receipt.customerName}</p>}
         <hr />
         {receipt.items.map((item) => (
           <div key={item.product_id} style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -136,6 +186,9 @@ export default function CheckoutPage() {
         <hr />
         <h3>Total: KES {receipt.total}</h3>
         <p>Paid via: {receipt.paymentMethod}</p>
+        {receipt.paymentMethod === 'credit' && (
+          <p style={{ color: '#e74c3c', fontWeight: 'bold' }}>⚠️ Amount owed by customer</p>
+        )}
         <button
           onClick={() => setReceipt(null)}
           style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
@@ -224,6 +277,25 @@ export default function CheckoutPage() {
             <option value="bank">Bank</option>
             <option value="credit">Credit (customer owes)</option>
           </select>
+
+          {paymentMethod === 'credit' && (
+            <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff3f3', borderRadius: '6px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Customer Name:</label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                style={{ padding: '8px', width: '100%', marginBottom: '8px', boxSizing: 'border-box' }}
+              />
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Phone (optional):</label>
+              <input
+                type="text"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+          )}
 
           <button
             onClick={handleCompleteSale}

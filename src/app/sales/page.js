@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
@@ -9,6 +11,18 @@ const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
 export default function SalesPage() {
   const [sales, setSales] = useState([])
   const [message, setMessage] = useState('')
+  const [authorized, setAuthorized] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    getCurrentAppUser().then((u) => {
+      if (!u) {
+        router.push('/login')
+        return
+      }
+      setAuthorized(true)
+    })
+  }, [])
 
   const fetchSales = async () => {
     const { data, error } = await supabase
@@ -36,8 +50,8 @@ export default function SalesPage() {
   }
 
   useEffect(() => {
-    fetchSales()
-  }, [])
+    if (authorized) fetchSales()
+  }, [authorized])
 
   const refundedQty = (item) =>
     item.refunds?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
@@ -59,7 +73,6 @@ export default function SalesPage() {
       return
     }
 
-    // 1. Record the refund
     const { error: refundError } = await supabase.from('refunds').insert({
       sale_item_id: item.id,
       quantity: qty,
@@ -71,7 +84,6 @@ export default function SalesPage() {
       return
     }
 
-    // 2. Restore stock
     const { data: stockRow } = await supabase
       .from('branch_stock')
       .select('id, quantity')
@@ -89,6 +101,8 @@ export default function SalesPage() {
     setMessage(`✅ Refunded ${qty} unit(s) of "${item.products.name}"`)
     fetchSales()
   }
+
+  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
