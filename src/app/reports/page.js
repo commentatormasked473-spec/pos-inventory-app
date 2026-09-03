@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 
@@ -9,6 +11,18 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('today')
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    getCurrentAppUser().then((u) => {
+      if (!u || u.role !== 'owner') {
+        router.push('/checkout')
+        return
+      }
+      setAuthorized(true)
+    })
+  }, [])
 
   const fetchSales = async () => {
     setLoading(true)
@@ -46,10 +60,9 @@ export default function ReportsPage() {
   }
 
   useEffect(() => {
-    fetchSales()
-  }, [period])
+    if (authorized) fetchSales()
+  }, [period, authorized])
 
-  // Aggregate calculations
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0)
   const totalSalesCount = sales.length
 
@@ -82,6 +95,12 @@ export default function ReportsPage() {
     paymentBreakdown[s.payment_method] = (paymentBreakdown[s.payment_method] || 0) + s.total
   })
 
+  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
+
+  if (loading) {
+    return <p style={{ padding: '40px' }}>Loading...</p>
+  }
+
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
       <h1>Sales Reports</h1>
@@ -106,50 +125,44 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
-            <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px' }}>
-              <p style={{ margin: 0, color: '#666' }}>Total Revenue</p>
-              <h2 style={{ margin: '5px 0' }}>KES {totalRevenue.toFixed(2)}</h2>
-            </div>
-            <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0fff5', borderRadius: '8px' }}>
-              <p style={{ margin: 0, color: '#666' }}>Estimated Profit</p>
-              <h2 style={{ margin: '5px 0' }}>KES {totalProfit.toFixed(2)}</h2>
-            </div>
-            <div style={{ flex: 1, padding: '15px', backgroundColor: '#fff8f0', borderRadius: '8px' }}>
-              <p style={{ margin: 0, color: '#666' }}>Number of Sales</p>
-              <h2 style={{ margin: '5px 0' }}>{totalSalesCount}</h2>
-            </div>
-          </div>
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
+        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px' }}>
+          <p style={{ margin: 0, color: '#666' }}>Total Revenue</p>
+          <h2 style={{ margin: '5px 0' }}>KES {totalRevenue.toFixed(2)}</h2>
+        </div>
+        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0fff5', borderRadius: '8px' }}>
+          <p style={{ margin: 0, color: '#666' }}>Estimated Profit</p>
+          <h2 style={{ margin: '5px 0' }}>KES {totalProfit.toFixed(2)}</h2>
+        </div>
+        <div style={{ flex: 1, padding: '15px', backgroundColor: '#fff8f0', borderRadius: '8px' }}>
+          <p style={{ margin: 0, color: '#666' }}>Number of Sales</p>
+          <h2 style={{ margin: '5px 0' }}>{totalSalesCount}</h2>
+        </div>
+      </div>
 
-          <h2>Payment Method Breakdown</h2>
-          {Object.entries(paymentBreakdown).map(([method, amount]) => (
-            <div key={method} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-              <span style={{ textTransform: 'capitalize' }}>{method}</span>
-              <span>KES {amount.toFixed(2)}</span>
-            </div>
-          ))}
+      <h2>Payment Method Breakdown</h2>
+      {Object.entries(paymentBreakdown).map(([method, amount]) => (
+        <div key={method} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+          <span style={{ textTransform: 'capitalize' }}>{method}</span>
+          <span>KES {amount.toFixed(2)}</span>
+        </div>
+      ))}
 
-          <h2 style={{ marginTop: '30px' }}>Best Sellers</h2>
-          {bestSellers.map((p) => (
-            <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-              <span>{p.name}</span>
-              <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
-            </div>
-          ))}
+      <h2 style={{ marginTop: '30px' }}>Best Sellers</h2>
+      {bestSellers.map((p) => (
+        <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+          <span>{p.name}</span>
+          <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
+        </div>
+      ))}
 
-          <h2 style={{ marginTop: '30px' }}>Slow Sellers</h2>
-          {slowSellers.map((p) => (
-            <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-              <span>{p.name}</span>
-              <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
-            </div>
-          ))}
-        </>
-      )}
+      <h2 style={{ marginTop: '30px' }}>Slow Sellers</h2>
+      {slowSellers.map((p) => (
+        <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+          <span>{p.name}</span>
+          <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
+        </div>
+      ))}
     </div>
   )
 }
