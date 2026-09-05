@@ -26,7 +26,6 @@ export default function DashboardPage() {
   }, [])
 
   if (loading) return <p style={{ padding: '40px' }}>Loading...</p>
-
   const links = [
     { href: '/products', label: 'Products & Inventory' },
     { href: '/checkout', label: 'Checkout' },
@@ -34,6 +33,7 @@ export default function DashboardPage() {
     { href: '/debts', label: 'Customer Debts' },
     { href: '/restocking', label: 'Suppliers & Restocking' },
     { href: '/reports', label: 'Sales Reports' },
+    { href: '/branches', label: 'Branches' },
   ]
 
   return (

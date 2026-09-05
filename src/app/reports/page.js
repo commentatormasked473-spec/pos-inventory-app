@@ -9,6 +9,8 @@ const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState('today')
+  const [branches, setBranches] = useState([])
+  const [branchFilter, setBranchFilter] = useState('all')
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
@@ -24,6 +26,15 @@ export default function ReportsPage() {
     })
   }, [])
 
+  const fetchBranches = async () => {
+    const { data } = await supabase
+      .from('branches')
+      .select('id, name')
+      .eq('business_id', BUSINESS_ID)
+      .order('name')
+    setBranches(data || [])
+  }
+
   const fetchSales = async () => {
     setLoading(true)
     const now = new Date()
@@ -37,13 +48,14 @@ export default function ReportsPage() {
       startDate.setDate(now.getDate() - 30)
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('sales')
       .select(`
         id,
         total,
         payment_method,
         created_at,
+        branch_id,
         sale_items (
           quantity,
           unit_price,
@@ -55,13 +67,23 @@ export default function ReportsPage() {
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: false })
 
+    if (branchFilter !== 'all') {
+      query = query.eq('branch_id', branchFilter)
+    }
+
+    const { data, error } = await query
+
     if (!error) setSales(data)
     setLoading(false)
   }
 
   useEffect(() => {
+    if (authorized) fetchBranches()
+  }, [authorized])
+
+  useEffect(() => {
     if (authorized) fetchSales()
-  }, [period, authorized])
+  }, [period, branchFilter, authorized])
 
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0)
   const totalSalesCount = sales.length
@@ -105,7 +127,7 @@ export default function ReportsPage() {
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
       <h1>Sales Reports</h1>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '15px' }}>
         {['today', 'week', 'month'].map((p) => (
           <button
             key={p}
@@ -124,6 +146,16 @@ export default function ReportsPage() {
           </button>
         ))}
       </div>
+
+      <label style={{ display: 'block', marginBottom: '20px' }}>
+        Branch:{' '}
+        <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} style={{ padding: '6px' }}>
+          <option value="all">All Branches</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
+      </label>
 
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
         <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px' }}>
