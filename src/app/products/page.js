@@ -6,9 +6,10 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
 
 export default function ProductsPage() {
+  const [branches, setBranches] = useState([])
+  const [branchId, setBranchId] = useState('')
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const [costPrice, setCostPrice] = useState('')
@@ -28,6 +29,16 @@ export default function ProductsPage() {
     })
   }, [])
 
+  const fetchBranches = async () => {
+    const { data } = await supabase
+      .from('branches')
+      .select('id, name')
+      .eq('business_id', BUSINESS_ID)
+      .order('name')
+    setBranches(data || [])
+    if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
+  }
+
   const fetchProducts = async () => {
     const { data, error } = await supabase
       .from('products')
@@ -37,7 +48,7 @@ export default function ProductsPage() {
         price,
         cost_price,
         reorder_level,
-        branch_stock ( quantity )
+        branch_stock ( quantity, branch_id )
       `)
       .eq('business_id', BUSINESS_ID)
       .order('name')
@@ -46,10 +57,18 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    if (authorized) fetchProducts()
+    if (authorized) {
+      fetchBranches()
+      fetchProducts()
+    }
   }, [authorized])
 
   const handleAddProduct = async () => {
+    if (!branchId) {
+      setMessage('Please select a branch first.')
+      return
+    }
+
     const { data: product, error: productError } = await supabase
       .from('products')
       .insert({
@@ -68,7 +87,7 @@ export default function ProductsPage() {
 
     const { error: stockError } = await supabase.from('branch_stock').insert({
       product_id: product.id,
-      branch_id: BRANCH_ID,
+      branch_id: branchId,
       quantity: parseInt(quantity),
     })
 
@@ -77,7 +96,7 @@ export default function ProductsPage() {
       return
     }
 
-    setMessage(`✅ Added "${name}"!`)
+    setMessage(`✅ Added "${name}" to selected branch!`)
     setName('')
     setPrice('')
     setCostPrice('')
@@ -90,6 +109,16 @@ export default function ProductsPage() {
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
       <h1>Add Product</h1>
+
+      <label style={{ display: 'block', marginBottom: '15px' }}>
+        Add stock to branch:{' '}
+        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
+      </label>
+
       <input
         type="text"
         placeholder="Product name"
@@ -126,29 +155,34 @@ export default function ProductsPage() {
       </button>
       <p>{message}</p>
 
-      <h2 style={{ marginTop: '40px' }}>Your Products</h2>
+      <h2 style={{ marginTop: '40px' }}>Your Products (all branches)</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
             <th style={{ padding: '8px' }}>Name</th>
             <th style={{ padding: '8px' }}>Price</th>
-            <th style={{ padding: '8px' }}>Stock</th>
+            <th style={{ padding: '8px' }}>Stock by Branch</th>
           </tr>
         </thead>
         <tbody>
-          {products.map((p) => {
-            const stock = p.branch_stock?.[0]?.quantity ?? 0
-            const lowStock = stock <= p.reorder_level
-            return (
-              <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '8px' }}>{p.name}</td>
-                <td style={{ padding: '8px' }}>KES {p.price}</td>
-                <td style={{ padding: '8px', color: lowStock ? 'red' : 'black' }}>
-                  {stock} {lowStock ? '⚠️ Low stock' : ''}
-                </td>
-              </tr>
-            )
-          })}
+          {products.map((p) => (
+            <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={{ padding: '8px' }}>{p.name}</td>
+              <td style={{ padding: '8px' }}>KES {p.price}</td>
+              <td style={{ padding: '8px' }}>
+                {branches.map((b) => {
+                  const stockRow = p.branch_stock?.find((s) => s.branch_id === b.id)
+                  const qty = stockRow?.quantity ?? 0
+                  const low = qty <= p.reorder_level
+                  return (
+                    <div key={b.id} style={{ color: low ? 'red' : 'black' }}>
+                      {b.name}: {qty} {low ? '⚠️' : ''}
+                    </div>
+                  )
+                })}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

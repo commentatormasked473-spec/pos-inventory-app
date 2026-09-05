@@ -6,9 +6,10 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
 
 export default function CheckoutPage() {
+  const [branches, setBranches] = useState([])
+  const [branchId, setBranchId] = useState('')
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
@@ -27,14 +28,27 @@ export default function CheckoutPage() {
         return
       }
       setCashierId(u.id)
+      // If the cashier has a fixed branch, default to it; owners can pick
+      if (u.branch_id) setBranchId(u.branch_id)
       setAuthorized(true)
     })
   }, [])
 
+  const fetchBranches = async () => {
+    const { data } = await supabase
+      .from('branches')
+      .select('id, name')
+      .eq('business_id', BUSINESS_ID)
+      .order('name')
+    setBranches(data || [])
+    if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
+  }
+
   const fetchProducts = async () => {
+    if (!branchId) return
     const { data, error } = await supabase
       .from('products')
-      .select(`id, name, price, branch_stock ( quantity )`)
+      .select(`id, name, price, branch_stock ( quantity, branch_id )`)
       .eq('business_id', BUSINESS_ID)
       .order('name')
 
@@ -42,8 +56,17 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    if (authorized) fetchProducts()
+    if (authorized) fetchBranches()
   }, [authorized])
+
+  useEffect(() => {
+    if (authorized && branchId) fetchProducts()
+  }, [authorized, branchId])
+
+  const getStockForBranch = (product) => {
+    const stockRow = product.branch_stock?.find((s) => s.branch_id === branchId)
+    return stockRow?.quantity ?? 0
+  }
 
   const addToCart = (product) => {
     setCart((prev) => {
@@ -87,7 +110,7 @@ export default function CheckoutPage() {
       .from('sales')
       .insert({
         business_id: BUSINESS_ID,
-        branch_id: BRANCH_ID,
+        branch_id: branchId,
         cashier_id: cashierId,
         total: total,
         payment_method: paymentMethod,
@@ -119,7 +142,7 @@ export default function CheckoutPage() {
         .from('branch_stock')
         .select('id, quantity')
         .eq('product_id', item.product_id)
-        .eq('branch_id', BRANCH_ID)
+        .eq('branch_id', branchId)
         .single()
 
       if (stockRow) {
@@ -203,11 +226,20 @@ export default function CheckoutPage() {
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
       <h1>Checkout</h1>
 
+      <label style={{ display: 'block', marginBottom: '15px' }}>
+        Branch:{' '}
+        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
+      </label>
+
       <div style={{ display: 'flex', gap: '40px' }}>
         <div style={{ flex: 1 }}>
           <h2>Products</h2>
           {products.map((p) => {
-            const stock = p.branch_stock?.[0]?.quantity ?? 0
+            const stock = getStockForBranch(p)
             return (
               <div
                 key={p.id}
