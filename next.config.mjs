@@ -7,7 +7,8 @@ const withPWAConfig = withPWA({
   disable: process.env.NODE_ENV === 'development',
 });
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  turbopack: {},
+};
 
 export default withPWAConfig(nextConfig);
