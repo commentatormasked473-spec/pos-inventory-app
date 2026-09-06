@@ -13,3 +13,7 @@ export async function getCurrentAppUser() {
   if (error) return null
   return data
 }
+export async function logout() {
+  await supabase.auth.signOut()
+  window.location.href = '/login'
+}

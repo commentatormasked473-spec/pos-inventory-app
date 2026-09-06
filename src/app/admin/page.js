@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
+import { getCurrentAppUser, logout } from '@/lib/auth'
 
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false)
@@ -75,7 +75,15 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
-      <h1>Platform Admin</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Platform Admin</h1>
+        <button
+          onClick={logout}
+          style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Log Out
+        </button>
+      </div>
       <p style={{ color: '#666' }}>Manage all businesses on the platform</p>
       <p>{message}</p>
 
