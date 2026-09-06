@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
+import { getCurrentAppUser, logout } from '@/lib/auth'
 
 const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
 
@@ -28,7 +28,6 @@ export default function CheckoutPage() {
         return
       }
       setCashierId(u.id)
-      // If the cashier has a fixed branch, default to it; owners can pick
       if (u.branch_id) setBranchId(u.branch_id)
       setAuthorized(true)
     })
@@ -195,7 +194,15 @@ export default function CheckoutPage() {
   if (receipt) {
     return (
       <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '400px' }}>
-        <h1>Receipt</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>Receipt</h1>
+          <button
+            onClick={logout}
+            style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            Log Out
+          </button>
+        </div>
         <p>{receipt.date}</p>
         <p>Sale ID: {receipt.saleId.slice(0, 8)}</p>
         {receipt.customerName && <p>Customer: {receipt.customerName}</p>}
@@ -224,9 +231,17 @@ export default function CheckoutPage() {
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
-      <h1>Checkout</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Checkout</h1>
+        <button
+          onClick={logout}
+          style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Log Out
+        </button>
+      </div>
 
-      <label style={{ display: 'block', marginBottom: '15px' }}>
+      <label style={{ display: 'block', marginBottom: '15px', marginTop: '15px' }}>
         Branch:{' '}
         <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
           {branches.map((b) => (
@@ -275,78 +290,4 @@ export default function CheckoutPage() {
 
         <div style={{ flex: 1 }}>
           <h2>Cart</h2>
-          {cart.length === 0 && <p>No items yet.</p>}
-          {cart.map((item) => (
-            <div key={item.product_id} style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{item.name} x{item.quantity} = KES {itemTotal(item)}</span>
-                <button onClick={() => removeFromCart(item.product_id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>
-                  Remove
-                </button>
-              </div>
-              <div style={{ marginTop: '4px' }}>
-                <label style={{ fontSize: '13px', marginRight: '6px' }}>Discount (KES):</label>
-                <input
-                  type="number"
-                  value={item.discount}
-                  onChange={(e) => updateDiscount(item.product_id, e.target.value)}
-                  style={{ width: '80px', padding: '4px' }}
-                />
-              </div>
-            </div>
-          ))}
-
-          <h3 style={{ marginTop: '20px' }}>Total: KES {total}</h3>
-
-          <label style={{ display: 'block', marginTop: '10px' }}>Payment Method:</label>
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            style={{ padding: '8px', width: '100%', marginTop: '5px' }}
-          >
-            <option value="cash">Cash</option>
-            <option value="mpesa">M-Pesa</option>
-            <option value="bank">Bank</option>
-            <option value="credit">Credit (customer owes)</option>
-          </select>
-
-          {paymentMethod === 'credit' && (
-            <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff3f3', borderRadius: '6px' }}>
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Customer Name:</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                style={{ padding: '8px', width: '100%', marginBottom: '8px', boxSizing: 'border-box' }}
-              />
-              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Phone (optional):</label>
-              <input
-                type="text"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
-
-          <button
-            onClick={handleCompleteSale}
-            style={{
-              marginTop: '15px',
-              padding: '10px 20px',
-              backgroundColor: '#00b386',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              width: '100%',
-              fontWeight: 'bold',
-            }}
-          >
-            Complete Sale
-          </button>
-          <p>{message}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
+          {cart.length === 0 && <p>No items
