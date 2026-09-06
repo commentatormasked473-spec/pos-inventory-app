@@ -4,22 +4,21 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+function usernameToEmail(username) {
+  return username.trim().toLowerCase().replace(/\s+/g, '') + '@posapp.local'
+}
+
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
   const router = useRouter()
 
-  const handleSignUp = async () => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) setMessage('Error: ' + error.message)
-    else setMessage('Signed up! Now ask your business owner to link your account.')
-  }
-
   const handleLogin = async () => {
+    const email = usernameToEmail(username)
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setMessage('Error: ' + error.message)
+      setMessage('Invalid username or password.')
       return
     }
 
@@ -64,12 +63,12 @@ export default function LoginPage() {
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}
       >
-        <h1 style={{ marginBottom: '20px' }}>Login / Sign Up</h1>
+        <h1 style={{ marginBottom: '20px' }}>Log In</h1>
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           style={{ display: 'block', marginBottom: '10px', padding: '10px', width: '100%', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' }}
         />
         <input
@@ -79,10 +78,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           style={{ display: 'block', marginBottom: '20px', padding: '10px', width: '100%', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box' }}
         />
-        <button onClick={handleSignUp} style={{ marginRight: '10px', padding: '10px 20px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Sign Up
-        </button>
-        <button onClick={handleLogin} style={{ padding: '10px 20px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+        <button onClick={handleLogin} style={{ padding: '10px 20px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
           Log In
         </button>
         <p style={{ marginTop: '15px' }}>{message}</p>

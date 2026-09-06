@@ -8,8 +8,10 @@ import { getCurrentAppUser, logout } from '@/lib/auth'
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false)
   const [businesses, setBusinesses] = useState([])
-  const [name, setName] = useState('')
+  const [businessName, setBusinessName] = useState('')
+  const [ownerFirstName, setOwnerFirstName] = useState('')
   const [message, setMessage] = useState('')
+  const [lastCredentials, setLastCredentials] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -36,23 +38,53 @@ export default function AdminPage() {
   }, [authorized])
 
   const handleAddBusiness = async () => {
-    if (!name.trim()) {
-      setMessage('Business name is required.')
+    if (!businessName.trim() || !ownerFirstName.trim()) {
+      setMessage('Business name and owner first name are both required.')
       return
     }
 
-    const { error } = await supabase.from('businesses').insert({
-      name,
-      is_active: true,
+    // 1. Create the business
+    const { data: business, error: businessError } = await supabase
+      .from('businesses')
+      .insert({ name: businessName, is_active: true })
+      .select()
+      .single()
+
+    if (businessError) {
+      setMessage('Error adding business: ' + businessError.message)
+      return
+    }
+
+    // 2. Generate credentials
+    const username = businessName.trim().toLowerCase().replace(/\s+/g, '')
+    const password = ownerFirstName.trim()
+    const email = username + '@posapp.local'
+
+    // 3. Create the owner account via our API route
+    const res = await fetch('/api/create-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        fullName: ownerFirstName,
+        role: 'owner',
+        businessId: business.id,
+        branchId: null,
+      }),
     })
 
-    if (error) {
-      setMessage('Error adding business: ' + error.message)
+    const result = await res.json()
+
+    if (!res.ok) {
+      setMessage('Business created, but owner account failed: ' + result.error)
       return
     }
 
-    setMessage(`✅ Business "${name}" added`)
-    setName('')
+    setLastCredentials({ businessName, username, password })
+    setMessage(`✅ Business "${businessName}" and owner account created`)
+    setBusinessName('')
+    setOwnerFirstName('')
     fetchBusinesses()
   }
 
@@ -87,19 +119,34 @@ export default function AdminPage() {
       <p style={{ color: '#666' }}>Manage all businesses on the platform</p>
       <p>{message}</p>
 
+      {lastCredentials && (
+        <div style={{ padding: '15px', backgroundColor: '#fff8e1', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffe082' }}>
+          <strong>Give these login details to the business owner:</strong>
+          <p style={{ margin: '8px 0 0' }}>Username: <strong>{lastCredentials.username}</strong></p>
+          <p style={{ margin: '4px 0' }}>Password: <strong>{lastCredentials.password}</strong></p>
+        </div>
+      )}
+
       <h2 style={{ marginTop: '30px' }}>Add New Business</h2>
       <input
         type="text"
         placeholder="Business name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        style={{ padding: '8px', marginRight: '10px', width: '300px' }}
+        value={businessName}
+        onChange={(e) => setBusinessName(e.target.value)}
+        style={{ display: 'block', padding: '8px', marginBottom: '10px', width: '300px' }}
+      />
+      <input
+        type="text"
+        placeholder="Owner's first name"
+        value={ownerFirstName}
+        onChange={(e) => setOwnerFirstName(e.target.value)}
+        style={{ display: 'block', padding: '8px', marginBottom: '10px', width: '300px' }}
       />
       <button
         onClick={handleAddBusiness}
         style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
       >
-        Add Business
+        Add Business & Create Owner Login
       </button>
 
       <h2 style={{ marginTop: '30px' }}>All Businesses</h2>
