@@ -23,7 +23,6 @@ export default function LoginPage() {
       return
     }
 
-    // Look up their role in app_users
     const { data: appUser, error: appUserError } = await supabase
       .from('app_users')
       .select('role')
@@ -35,7 +34,9 @@ export default function LoginPage() {
       return
     }
 
-    if (appUser.role === 'owner') {
+    if (appUser.role === 'admin') {
+      router.push('/admin')
+    } else if (appUser.role === 'owner') {
       router.push('/dashboard')
     } else {
       router.push('/checkout')
