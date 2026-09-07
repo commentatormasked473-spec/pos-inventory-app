@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
 export default function DebtsPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [debts, setDebts] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
@@ -17,6 +18,7 @@ export default function DebtsPage() {
         router.push('/checkout')
         return
       }
+      setBusinessId(u.business_id)
       setAuthorized(true)
     })
   }, [])
@@ -30,17 +32,21 @@ export default function DebtsPage() {
         amount_paid,
         status,
         created_at,
-        customers ( name, phone )
+        customers ( name, phone, business_id )
       `)
       .order('created_at', { ascending: false })
 
-    if (!error) setDebts(data)
-    else setMessage('Error loading debts: ' + error.message)
+    if (!error) {
+      const filtered = data.filter((d) => d.customers?.business_id === businessId)
+      setDebts(filtered)
+    } else {
+      setMessage('Error loading debts: ' + error.message)
+    }
   }
 
   useEffect(() => {
-    if (authorized) fetchDebts()
-  }, [authorized])
+    if (authorized && businessId) fetchDebts()
+  }, [authorized, businessId])
 
   const handleRecordPayment = async (debt) => {
     const remaining = debt.amount_owed - debt.amount_paid

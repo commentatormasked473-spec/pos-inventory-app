@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
-
 export default function RestockingPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [suppliers, setSuppliers] = useState([])
   const [products, setProducts] = useState([])
+  const [branches, setBranches] = useState([])
   const [orders, setOrders] = useState([])
 
   const [supplierName, setSupplierName] = useState('')
@@ -18,6 +17,7 @@ export default function RestockingPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState('')
   const [selectedProduct, setSelectedProduct] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState('')
   const [orderQty, setOrderQty] = useState('')
 
   const [message, setMessage] = useState('')
@@ -30,32 +30,37 @@ export default function RestockingPage() {
         router.push('/checkout')
         return
       }
+      setBusinessId(u.business_id)
       setAuthorized(true)
     })
   }, [])
 
   const fetchAll = async () => {
-    const { data: sup } = await supabase.from('suppliers').select('*').eq('business_id', BUSINESS_ID)
+    const { data: sup } = await supabase.from('suppliers').select('*').eq('business_id', businessId)
     setSuppliers(sup || [])
 
-    const { data: prod } = await supabase.from('products').select('id, name').eq('business_id', BUSINESS_ID)
+    const { data: prod } = await supabase.from('products').select('id, name').eq('business_id', businessId)
     setProducts(prod || [])
+
+    const { data: br } = await supabase.from('branches').select('id, name').eq('business_id', businessId)
+    setBranches(br || [])
+    if (br && br.length > 0 && !selectedBranch) setSelectedBranch(br[0].id)
 
     const { data: po } = await supabase
       .from('purchase_orders')
-      .select('id, quantity_ordered, status, created_at, product_id, suppliers ( name ), products ( name )')
+      .select('id, quantity_ordered, status, created_at, product_id, branch_id, suppliers ( name ), products ( name )')
       .order('created_at', { ascending: false })
-    setOrders(po || [])
+    setOrders((po || []).filter((o) => products.find((p) => p.id === o.product_id) || true))
   }
 
   useEffect(() => {
-    if (authorized) fetchAll()
-  }, [authorized])
+    if (authorized && businessId) fetchAll()
+  }, [authorized, businessId])
 
   const handleAddSupplier = async () => {
     if (!supplierName.trim()) return
     const { error } = await supabase.from('suppliers').insert({
-      business_id: BUSINESS_ID,
+      business_id: businessId,
       name: supplierName,
       contact: supplierContact,
     })
@@ -70,13 +75,13 @@ export default function RestockingPage() {
   }
 
   const handleCreateOrder = async () => {
-    if (!selectedSupplier || !selectedProduct || !orderQty) {
-      setMessage('Fill in supplier, product, and quantity.')
+    if (!selectedSupplier || !selectedProduct || !selectedBranch || !orderQty) {
+      setMessage('Fill in supplier, product, branch, and quantity.')
       return
     }
     const { error } = await supabase.from('purchase_orders').insert({
       supplier_id: selectedSupplier,
-      branch_id: BRANCH_ID,
+      branch_id: selectedBranch,
       product_id: selectedProduct,
       quantity_ordered: parseInt(orderQty),
       status: 'pending',
@@ -105,7 +110,7 @@ export default function RestockingPage() {
       .from('branch_stock')
       .select('id, quantity')
       .eq('product_id', order.product_id)
-      .eq('branch_id', BRANCH_ID)
+      .eq('branch_id', order.branch_id)
       .single()
 
     if (stockRow) {
@@ -156,6 +161,11 @@ export default function RestockingPage() {
         <option value="">Select product</option>
         {products.map((p) => (
           <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+      </select>
+      <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} style={{ padding: '8px', marginRight: '10px' }}>
+        {branches.map((b) => (
+          <option key={b.id} value={b.id}>{b.name}</option>
         ))}
       </select>
       <input

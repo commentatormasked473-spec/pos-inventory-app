@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-
 export default function ReportsPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [period, setPeriod] = useState('today')
   const [branches, setBranches] = useState([])
   const [branchFilter, setBranchFilter] = useState('all')
@@ -22,6 +21,7 @@ export default function ReportsPage() {
         router.push('/checkout')
         return
       }
+      setBusinessId(u.business_id)
       setAuthorized(true)
     })
   }, [])
@@ -30,7 +30,7 @@ export default function ReportsPage() {
     const { data } = await supabase
       .from('branches')
       .select('id, name')
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
     setBranches(data || [])
   }
@@ -63,7 +63,7 @@ export default function ReportsPage() {
           products ( name, cost_price )
         )
       `)
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: false })
 
@@ -78,12 +78,12 @@ export default function ReportsPage() {
   }
 
   useEffect(() => {
-    if (authorized) fetchBranches()
-  }, [authorized])
+    if (authorized && businessId) fetchBranches()
+  }, [authorized, businessId])
 
   useEffect(() => {
-    if (authorized) fetchSales()
-  }, [period, branchFilter, authorized])
+    if (authorized && businessId) fetchSales()
+  }, [period, branchFilter, authorized, businessId])
 
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0)
   const totalSalesCount = sales.length

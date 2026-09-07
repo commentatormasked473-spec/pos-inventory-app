@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser, logout } from '@/lib/auth'
 
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-
 export default function CheckoutPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState('')
   const [products, setProducts] = useState([])
@@ -28,6 +27,7 @@ export default function CheckoutPage() {
         return
       }
       setCashierId(u.id)
+      setBusinessId(u.business_id)
       if (u.branch_id) setBranchId(u.branch_id)
       setAuthorized(true)
     })
@@ -37,7 +37,7 @@ export default function CheckoutPage() {
     const { data } = await supabase
       .from('branches')
       .select('id, name')
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
     setBranches(data || [])
     if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
@@ -48,15 +48,15 @@ export default function CheckoutPage() {
     const { data, error } = await supabase
       .from('products')
       .select(`id, name, price, branch_stock ( quantity, branch_id )`)
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
 
     if (!error) setProducts(data)
   }
 
   useEffect(() => {
-    if (authorized) fetchBranches()
-  }, [authorized])
+    if (authorized && businessId) fetchBranches()
+  }, [authorized, businessId])
 
   useEffect(() => {
     if (authorized && branchId) fetchProducts()
@@ -108,7 +108,7 @@ export default function CheckoutPage() {
     const { data: sale, error: saleError } = await supabase
       .from('sales')
       .insert({
-        business_id: BUSINESS_ID,
+        business_id: businessId,
         branch_id: branchId,
         cashier_id: cashierId,
         total: total,
@@ -156,7 +156,7 @@ export default function CheckoutPage() {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
         .insert({
-          business_id: BUSINESS_ID,
+          business_id: businessId,
           name: customerName,
           phone: customerPhone,
         })
@@ -217,7 +217,7 @@ export default function CheckoutPage() {
         <h3>Total: KES {receipt.total}</h3>
         <p>Paid via: {receipt.paymentMethod}</p>
         {receipt.paymentMethod === 'credit' && (
-          <p style={{ color: '#e74c3c', fontWeight: 'bold' }}>⚠️ Amount owed by customer</p>
+          <p style={{ color: '#e74c3c', fontWeight: 'bold' }}>Amount owed by customer</p>
         )}
         <button
           onClick={() => setReceipt(null)}
@@ -241,14 +241,18 @@ export default function CheckoutPage() {
         </button>
       </div>
 
-      <label style={{ display: 'block', marginBottom: '15px', marginTop: '15px' }}>
-        Branch:{' '}
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </label>
+      {branches.length === 0 ? (
+        <p style={{ color: '#e74c3c', marginTop: '15px' }}>No branch set up yet. Ask your business owner to add one.</p>
+      ) : (
+        <label style={{ display: 'block', marginBottom: '15px', marginTop: '15px' }}>
+          Branch:{' '}
+          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div style={{ display: 'flex', gap: '40px' }}>
         <div style={{ flex: 1 }}>
@@ -290,7 +294,7 @@ export default function CheckoutPage() {
 
         <div style={{ flex: 1 }}>
           <h2>Cart</h2>
-                    {cart.length === 0 && <p>No items yet.</p>}
+          {cart.length === 0 && <p>No items yet.</p>}
           {cart.map((item) => (
             <div key={item.product_id} style={{ padding: '6px 0', borderBottom: '1px solid #f5f5f5' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>

@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-
 export default function BranchesPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [branches, setBranches] = useState([])
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
@@ -21,6 +20,7 @@ export default function BranchesPage() {
         router.push('/checkout')
         return
       }
+      setBusinessId(u.business_id)
       setAuthorized(true)
     })
   }, [])
@@ -29,15 +29,15 @@ export default function BranchesPage() {
     const { data, error } = await supabase
       .from('branches')
       .select('id, name, location')
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
 
     if (!error) setBranches(data)
   }
 
   useEffect(() => {
-    if (authorized) fetchBranches()
-  }, [authorized])
+    if (authorized && businessId) fetchBranches()
+  }, [authorized, businessId])
 
   const handleAddBranch = async () => {
     if (!name.trim()) {
@@ -46,7 +46,7 @@ export default function BranchesPage() {
     }
 
     const { error } = await supabase.from('branches').insert({
-      business_id: BUSINESS_ID,
+      business_id: businessId,
       name,
       location,
     })

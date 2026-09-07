@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser } from '@/lib/auth'
 
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-
 export default function ProductsPage() {
+  const [businessId, setBusinessId] = useState(null)
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState('')
   const [name, setName] = useState('')
@@ -25,6 +24,7 @@ export default function ProductsPage() {
         router.push('/checkout')
         return
       }
+      setBusinessId(u.business_id)
       setAuthorized(true)
     })
   }, [])
@@ -33,7 +33,7 @@ export default function ProductsPage() {
     const { data } = await supabase
       .from('branches')
       .select('id, name')
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
     setBranches(data || [])
     if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
@@ -50,29 +50,29 @@ export default function ProductsPage() {
         reorder_level,
         branch_stock ( quantity, branch_id )
       `)
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('name')
 
     if (!error) setProducts(data)
   }
 
   useEffect(() => {
-    if (authorized) {
+    if (authorized && businessId) {
       fetchBranches()
       fetchProducts()
     }
-  }, [authorized])
+  }, [authorized, businessId])
 
   const handleAddProduct = async () => {
     if (!branchId) {
-      setMessage('Please select a branch first.')
+      setMessage('Please add a branch first before adding products.')
       return
     }
 
     const { data: product, error: productError } = await supabase
       .from('products')
       .insert({
-        business_id: BUSINESS_ID,
+        business_id: businessId,
         name,
         price: parseFloat(price),
         cost_price: parseFloat(costPrice),
@@ -110,14 +110,18 @@ export default function ProductsPage() {
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
       <h1>Add Product</h1>
 
-      <label style={{ display: 'block', marginBottom: '15px' }}>
-        Add stock to branch:{' '}
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </label>
+      {branches.length === 0 ? (
+        <p style={{ color: '#e74c3c' }}>You need to add a branch first — go to Branches in your dashboard.</p>
+      ) : (
+        <label style={{ display: 'block', marginBottom: '15px' }}>
+          Add stock to branch:{' '}
+          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <input
         type="text"
