@@ -46,6 +46,8 @@ export default function ReportsPage() {
       startDate.setDate(now.getDate() - 7)
     } else if (period === 'month') {
       startDate.setDate(now.getDate() - 30)
+    } else if (period === 'year') {
+      startDate.setDate(now.getDate() - 365)
     }
 
     let query = supabase
@@ -117,6 +119,22 @@ export default function ReportsPage() {
     paymentBreakdown[s.payment_method] = (paymentBreakdown[s.payment_method] || 0) + s.total
   })
 
+  // Group sales by calendar date for the daily breakdown table
+  const dailyBreakdown = {}
+  sales.forEach((s) => {
+    const dateKey = new Date(s.created_at).toLocaleDateString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+    if (!dailyBreakdown[dateKey]) {
+      dailyBreakdown[dateKey] = { date: dateKey, total: 0, count: 0, sortKey: new Date(s.created_at).setHours(0, 0, 0, 0) }
+    }
+    dailyBreakdown[dateKey].total += s.total
+    dailyBreakdown[dateKey].count += 1
+  })
+  const dailyList = Object.values(dailyBreakdown).sort((a, b) => b.sortKey - a.sortKey)
+
   if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   if (loading) {
@@ -128,7 +146,7 @@ export default function ReportsPage() {
       <h1>Sales Reports</h1>
 
       <div style={{ marginBottom: '15px' }}>
-        {['today', 'week', 'month'].map((p) => (
+        {['today', 'week', 'month', 'year'].map((p) => (
           <button
             key={p}
             onClick={() => setPeriod(p)}
@@ -142,7 +160,7 @@ export default function ReportsPage() {
               cursor: 'pointer',
             }}
           >
-            {p === 'today' ? 'Today' : p === 'week' ? 'Last 7 Days' : 'Last 30 Days'}
+            {p === 'today' ? 'Today' : p === 'week' ? 'Last 7 Days' : p === 'month' ? 'Last 30 Days' : 'This Year'}
           </button>
         ))}
       </div>
@@ -171,6 +189,26 @@ export default function ReportsPage() {
           <h2 style={{ margin: '5px 0' }}>{totalSalesCount}</h2>
         </div>
       </div>
+
+      <h2>Sales By Date</h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+            <th style={{ padding: '8px' }}>Date</th>
+            <th style={{ padding: '8px' }}>Sales Made</th>
+            <th style={{ padding: '8px' }}>Total (KES)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dailyList.map((d) => (
+            <tr key={d.date} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={{ padding: '8px' }}>{d.date}</td>
+              <td style={{ padding: '8px' }}>{d.count}</td>
+              <td style={{ padding: '8px' }}>{d.total.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <h2>Payment Method Breakdown</h2>
       {Object.entries(paymentBreakdown).map(([method, amount]) => (
