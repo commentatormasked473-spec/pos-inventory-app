@@ -29,7 +29,6 @@ export default function DashboardPage() {
 
   const links = [
     { href: '/products', label: 'Products & Inventory' },
-    { href: '/checkout', label: 'Checkout' },
     { href: '/sales', label: 'Recent Sales & Refunds' },
     { href: '/debts', label: 'Customer Debts' },
     { href: '/restocking', label: 'Suppliers & Restocking' },

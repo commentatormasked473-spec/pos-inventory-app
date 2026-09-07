@@ -21,10 +21,14 @@ export default function CheckoutPage() {
   const [cashierId, setCashierId] = useState(null)
   const router = useRouter()
 
-  useEffect(() => {
+    useEffect(() => {
     getCurrentAppUser().then((u) => {
       if (!u) {
         router.push('/login')
+        return
+      }
+      if (u.role !== 'cashier') {
+        router.push('/dashboard')
         return
       }
       setCashierId(u.id)
