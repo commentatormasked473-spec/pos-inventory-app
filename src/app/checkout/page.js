@@ -10,6 +10,7 @@ export default function CheckoutPage() {
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState('')
   const [products, setProducts] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [customerName, setCustomerName] = useState('')
@@ -254,10 +255,27 @@ export default function CheckoutPage() {
         </label>
       )}
 
-      <div style={{ display: 'flex', gap: '40px' }}>
+            <div style={{ display: 'flex', gap: '40px' }}>
         <div style={{ flex: 1 }}>
           <h2>Products</h2>
-          {products.map((p) => {
+          <input
+            type="text"
+            placeholder="🔍 Search products..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              padding: '10px',
+              width: '100%',
+              marginBottom: '15px',
+              borderRadius: '6px',
+              border: '1px solid #ccc',
+              boxSizing: 'border-box',
+              fontSize: '14px',
+            }}
+          />
+          {products
+            .filter((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((p) => {
             const stock = getStockForBranch(p)
             return (
               <div
