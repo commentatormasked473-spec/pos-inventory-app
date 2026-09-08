@@ -34,6 +34,7 @@ export default function DashboardPage() {
     { href: '/restocking', label: 'Suppliers & Restocking' },
     { href: '/reports', label: 'Sales Reports' },
     { href: '/branches', label: 'Branches' },
+    { href: '/stock-history', label: 'Stock History' },
     { href: '/staff', label: 'Staff (Cashiers)' },
   ]
 
