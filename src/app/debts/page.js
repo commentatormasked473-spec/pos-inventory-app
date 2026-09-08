@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
+import { getCurrentAppUser, logout } from '@/lib/auth'
 
 export default function DebtsPage() {
   const [businessId, setBusinessId] = useState(null)
@@ -32,7 +32,8 @@ export default function DebtsPage() {
         amount_paid,
         status,
         created_at,
-        customers ( name, phone, business_id )
+        customers ( name, phone, business_id ),
+        credit_payments ( amount, paid_at )
       `)
       .order('created_at', { ascending: false })
 
@@ -48,43 +49,25 @@ export default function DebtsPage() {
     if (authorized && businessId) fetchDebts()
   }, [authorized, businessId])
 
-  const handleRecordPayment = async (debt) => {
-    const remaining = debt.amount_owed - debt.amount_paid
-    const paymentStr = prompt(`Record payment for ${debt.customers.name} (owes KES ${remaining}):`)
-    const payment = parseFloat(paymentStr)
-
-    if (!payment || payment <= 0 || payment > remaining) {
-      setMessage('Invalid payment amount.')
-      return
-    }
-
-    const newAmountPaid = debt.amount_paid + payment
-    const newStatus = newAmountPaid >= debt.amount_owed ? 'paid' : 'partial'
-
-    const { error } = await supabase
-      .from('credit_accounts')
-      .update({ amount_paid: newAmountPaid, status: newStatus })
-      .eq('id', debt.id)
-
-    if (error) {
-      setMessage('Error recording payment: ' + error.message)
-      return
-    }
-
-    setMessage(`✅ Recorded payment of KES ${payment} from ${debt.customers.name}`)
-    fetchDebts()
-  }
-
   const totalOutstanding = debts.reduce((sum, d) => sum + (d.amount_owed - d.amount_paid), 0)
 
   if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
-      <h1>Customer Debts</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Customer Debts</h1>
+        <button
+          onClick={logout}
+          style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Log Out
+        </button>
+      </div>
       <p style={{ fontWeight: 'bold', fontSize: '18px' }}>
         Total outstanding: KES {totalOutstanding}
       </p>
+      <p style={{ color: '#666', fontSize: '14px' }}>View only — payments are recorded by cashiers at checkout.</p>
       <p>{message}</p>
 
       {debts.map((debt) => {
@@ -97,17 +80,16 @@ export default function DebtsPage() {
               borderRadius: '8px',
               padding: '15px',
               marginBottom: '12px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
             }}
           >
-            <div>
-              <strong>{debt.customers.name}</strong>
-              {debt.customers.phone && <span style={{ color: '#666' }}> — {debt.customers.phone}</span>}
-              <p style={{ margin: '4px 0' }}>
-                Owed: KES {debt.amount_owed} | Paid: KES {debt.amount_paid} | Remaining: KES {remaining}
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong>{debt.customers.name}</strong>
+                {debt.customers.phone && <span style={{ color: '#666' }}> — {debt.customers.phone}</span>}
+                <p style={{ margin: '4px 0' }}>
+                  Owed: KES {debt.amount_owed} | Paid: KES {debt.amount_paid} | Remaining: KES {remaining}
+                </p>
+              </div>
               <span
                 style={{
                   fontSize: '12px',
@@ -120,20 +102,16 @@ export default function DebtsPage() {
                 {debt.status.toUpperCase()}
               </span>
             </div>
-            <button
-              onClick={() => handleRecordPayment(debt)}
-              disabled={debt.status === 'paid'}
-              style={{
-                padding: '8px 14px',
-                backgroundColor: debt.status === 'paid' ? '#ccc' : '#1a73e8',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: debt.status === 'paid' ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Record Payment
-            </button>
+            {debt.credit_payments && debt.credit_payments.length > 0 && (
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0f0f0' }}>
+                <p style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>Payment history:</p>
+                {debt.credit_payments.map((p, i) => (
+                  <div key={i} style={{ fontSize: '13px', color: '#333' }}>
+                    KES {p.amount} on {new Date(p.paid_at).toLocaleDateString()}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}

@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
-
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-const BRANCH_ID = '386f0e58-dbd4-4bf3-b157-0719ae994e82'
+import { getCurrentAppUser, logout } from '@/lib/auth'
 
 export default function SalesPage() {
+  const [businessId, setBusinessId] = useState(null)
+  const [role, setRole] = useState(null)
+  const [userId, setUserId] = useState(null)
   const [sales, setSales] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
@@ -20,18 +20,22 @@ export default function SalesPage() {
         router.push('/login')
         return
       }
+      setBusinessId(u.business_id)
+      setRole(u.role)
+      setUserId(u.id)
       setAuthorized(true)
     })
   }, [])
 
   const fetchSales = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('sales')
       .select(`
         id,
         created_at,
         total,
         payment_method,
+        cashier_id,
         sale_items (
           id,
           quantity,
@@ -41,17 +45,27 @@ export default function SalesPage() {
           refunds ( quantity )
         )
       `)
-      .eq('business_id', BUSINESS_ID)
+      .eq('business_id', businessId)
       .order('created_at', { ascending: false })
-      .limit(20)
+
+    // Cashiers only see their OWN sales, and only for today (resets at midnight)
+    if (role === 'cashier') {
+      const startOfToday = new Date()
+      startOfToday.setHours(0, 0, 0, 0)
+      query = query.eq('cashier_id', userId).gte('created_at', startOfToday.toISOString())
+    } else {
+      query = query.limit(50)
+    }
+
+    const { data, error } = await query
 
     if (!error) setSales(data)
     else setMessage('Error loading sales: ' + error.message)
   }
 
   useEffect(() => {
-    if (authorized) fetchSales()
-  }, [authorized])
+    if (authorized && businessId) fetchSales()
+  }, [authorized, businessId])
 
   const refundedQty = (item) =>
     item.refunds?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
@@ -84,11 +98,17 @@ export default function SalesPage() {
       return
     }
 
+    const { data: saleRow } = await supabase
+      .from('sales')
+      .select('branch_id')
+      .eq('id', item.sale_id)
+      .single()
+
     const { data: stockRow } = await supabase
       .from('branch_stock')
       .select('id, quantity')
       .eq('product_id', item.product_id)
-      .eq('branch_id', BRANCH_ID)
+      .eq('branch_id', saleRow?.branch_id)
       .single()
 
     if (stockRow) {
@@ -106,8 +126,17 @@ export default function SalesPage() {
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
-      <h1>Recent Sales</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>{role === 'cashier' ? "Today's Sales" : 'Recent Sales'}</h1>
+        <button
+          onClick={logout}
+          style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Log Out
+        </button>
+      </div>
       <p>{message}</p>
+      {sales.length === 0 && <p style={{ color: '#666' }}>No sales yet.</p>}
       {sales.map((sale) => (
         <div key={sale.id} style={{ border: '1px solid #eee', borderRadius: '8px', padding: '15px', marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -125,7 +154,7 @@ export default function SalesPage() {
                   {refunded > 0 ? ` (${refunded} refunded)` : ''}
                 </span>
                 <button
-                  onClick={() => handleRefund(item)}
+                  onClick={() => handleRefund({ ...item, sale_id: sale.id })}
                   disabled={fullyRefunded}
                   style={{
                     padding: '4px 10px',

@@ -21,7 +21,7 @@ export default function CheckoutPage() {
   const [cashierId, setCashierId] = useState(null)
   const router = useRouter()
 
-    useEffect(() => {
+  useEffect(() => {
     getCurrentAppUser().then((u) => {
       if (!u) {
         router.push('/login')
@@ -238,12 +238,20 @@ export default function CheckoutPage() {
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Checkout</h1>
-        <button
-          onClick={logout}
-          style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-        >
-          Log Out
-        </button>
+        <div>
+          <a href="/sales" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>
+            My Sales Today
+          </a>
+          <a href="/credit-payments" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>
+            Credit Payments
+          </a>
+          <button
+            onClick={logout}
+            style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            Log Out
+          </button>
+        </div>
       </div>
 
       {branches.length === 0 ? (
@@ -259,12 +267,12 @@ export default function CheckoutPage() {
         </label>
       )}
 
-            <div style={{ display: 'flex', gap: '40px' }}>
+      <div style={{ display: 'flex', gap: '40px' }}>
         <div style={{ flex: 1 }}>
           <h2>Products</h2>
           <input
             type="text"
-            placeholder="🔍 Search products..."
+            placeholder="Search products..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -280,38 +288,38 @@ export default function CheckoutPage() {
           {products
             .filter((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
             .map((p) => {
-            const stock = getStockForBranch(p)
-            return (
-              <div
-                key={p.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '8px 0',
-                  borderBottom: '1px solid #eee',
-                }}
-              >
-                <span>
-                  {p.name} — KES {p.price} ({stock} in stock)
-                </span>
-                <button
-                  onClick={() => addToCart(p)}
-                  disabled={stock <= 0}
+              const stock = getStockForBranch(p)
+              return (
+                <div
+                  key={p.id}
                   style={{
-                    padding: '6px 12px',
-                    backgroundColor: stock <= 0 ? '#ccc' : '#1a73e8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: stock <= 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #eee',
                   }}
                 >
-                  Add
-                </button>
-              </div>
-            )
-          })}
+                  <span>
+                    {p.name} — KES {p.price} ({stock} in stock)
+                  </span>
+                  <button
+                    onClick={() => addToCart(p)}
+                    disabled={stock <= 0}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: stock <= 0 ? '#ccc' : '#1a73e8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: stock <= 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              )
+            })}
         </div>
 
         <div style={{ flex: 1 }}>
