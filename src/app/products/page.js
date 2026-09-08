@@ -179,7 +179,7 @@ export default function ProductsPage() {
                   const qty = stockRow?.quantity ?? 0
                   const low = qty <= p.reorder_level
                   return (
-                    <div key={b.id} style={{ color: low ? 'red' : 'black' }}>
+                    <div key={b.id} style={{ color: low ? 'red' : 'white' }}>
                       {b.name}: {qty} {low ? '⚠️' : ''}
                     </div>
                   )
