@@ -124,11 +124,18 @@ export default function SalesPage() {
       .eq('branch_id', saleRow?.branch_id)
       .single()
 
-    if (stockRow) {
+     if (stockRow) {
       await supabase
         .from('branch_stock')
         .update({ quantity: stockRow.quantity + qty })
         .eq('id', stockRow.id)
+
+      await supabase.from('stock_movements').insert({
+        product_id: item.product_id,
+        branch_id: saleRow?.branch_id,
+        change_qty: qty,
+        reason: 'refund',
+      })
     }
 
     setMessage(`✅ Refunded ${qty} unit(s) of "${item.products.name}"`)

@@ -113,11 +113,18 @@ export default function RestockingPage() {
       .eq('branch_id', order.branch_id)
       .single()
 
-    if (stockRow) {
+     if (stockRow) {
       await supabase
         .from('branch_stock')
         .update({ quantity: stockRow.quantity + order.quantity_ordered })
         .eq('id', stockRow.id)
+
+      await supabase.from('stock_movements').insert({
+        product_id: order.product_id,
+        branch_id: order.branch_id,
+        change_qty: order.quantity_ordered,
+        reason: 'restock',
+      })
     }
 
     setMessage(`✅ Stock updated — received ${order.quantity_ordered} units`)

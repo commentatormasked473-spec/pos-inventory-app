@@ -141,7 +141,7 @@ export default function CheckoutPage() {
       return
     }
 
-    for (const item of cart) {
+       for (const item of cart) {
       const { data: stockRow } = await supabase
         .from('branch_stock')
         .select('id, quantity')
@@ -154,6 +154,13 @@ export default function CheckoutPage() {
           .from('branch_stock')
           .update({ quantity: stockRow.quantity - item.quantity })
           .eq('id', stockRow.id)
+
+        await supabase.from('stock_movements').insert({
+          product_id: item.product_id,
+          branch_id: branchId,
+          change_qty: -item.quantity,
+          reason: 'sale',
+        })
       }
     }
 
