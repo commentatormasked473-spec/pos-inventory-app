@@ -9,6 +9,7 @@ export default function SalesPage() {
   const [businessId, setBusinessId] = useState(null)
   const [role, setRole] = useState(null)
   const [userId, setUserId] = useState(null)
+  const [period, setPeriod] = useState('today')
   const [sales, setSales] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
@@ -48,13 +49,25 @@ export default function SalesPage() {
       .eq('business_id', businessId)
       .order('created_at', { ascending: false })
 
-    // Cashiers only see their OWN sales, and only for today (resets at midnight)
     if (role === 'cashier') {
+      // Cashiers always locked to today, regardless of period buttons
       const startOfToday = new Date()
       startOfToday.setHours(0, 0, 0, 0)
       query = query.eq('cashier_id', userId).gte('created_at', startOfToday.toISOString())
     } else {
-      query = query.limit(50)
+      // Owners can pick a date range
+      const now = new Date()
+      let startDate = new Date()
+      if (period === 'today') {
+        startDate.setHours(0, 0, 0, 0)
+      } else if (period === 'week') {
+        startDate.setDate(now.getDate() - 7)
+      } else if (period === 'month') {
+        startDate.setDate(now.getDate() - 30)
+      } else if (period === 'year') {
+        startDate.setDate(now.getDate() - 365)
+      }
+      query = query.gte('created_at', startDate.toISOString()).limit(200)
     }
 
     const { data, error } = await query
@@ -65,7 +78,7 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (authorized && businessId) fetchSales()
-  }, [authorized, businessId])
+  }, [authorized, businessId, period])
 
   const refundedQty = (item) =>
     item.refunds?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
@@ -135,6 +148,29 @@ export default function SalesPage() {
           Log Out
         </button>
       </div>
+
+      {role !== 'cashier' && (
+        <div style={{ margin: '15px 0' }}>
+          {['today', 'week', 'month', 'year'].map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              style={{
+                padding: '8px 16px',
+                marginRight: '10px',
+                backgroundColor: period === p ? '#1a73e8' : '#eee',
+                color: period === p ? 'white' : 'black',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              {p === 'today' ? 'Today' : p === 'week' ? 'Last 7 Days' : p === 'month' ? 'Last 30 Days' : 'This Year'}
+            </button>
+          ))}
+        </div>
+      )}
+
       <p>{message}</p>
       {sales.length === 0 && <p style={{ color: '#666' }}>No sales yet.</p>}
       {sales.map((sale) => (
