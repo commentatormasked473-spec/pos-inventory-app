@@ -11,6 +11,7 @@ export default function StockHistoryPage() {
   const [branchId, setBranchId] = useState('')
   const [period, setPeriod] = useState('today')
   const [rows, setRows] = useState([])
+  const [movementLog, setMovementLog] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
   const router = useRouter()
@@ -67,6 +68,7 @@ export default function StockHistoryPage() {
 
     const startDate = getStartDate()
 
+    // Summary: opening vs current stock per product
     const results = []
     for (const p of products) {
       const stockRow = p.branch_stock?.find((s) => s.branch_id === branchId)
@@ -89,8 +91,17 @@ export default function StockHistoryPage() {
         netChange: changesSincePeriodStart,
       })
     }
-
     setRows(results)
+
+    // Day-by-day movement log for the selected period
+    const { data: logData, error: logError } = await supabase
+      .from('stock_movements')
+      .select('change_qty, reason, created_at, products ( name )')
+      .eq('branch_id', branchId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (!logError) setMovementLog(logData)
   }
 
   useEffect(() => {
@@ -109,6 +120,18 @@ export default function StockHistoryPage() {
     month: "Opening stock 30 days ago",
     year: "Opening stock 1 year ago",
   }[period]
+
+  // Group the movement log by calendar date for display
+  const groupedByDate = {}
+  movementLog.forEach((m) => {
+    const dateKey = new Date(m.created_at).toLocaleDateString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+    if (!groupedByDate[dateKey]) groupedByDate[dateKey] = []
+    groupedByDate[dateKey].push(m)
+  })
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
@@ -152,7 +175,8 @@ export default function StockHistoryPage() {
         </select>
       </label>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <h2>Summary</h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
             <th style={{ padding: '8px' }}>Product</th>
@@ -174,6 +198,24 @@ export default function StockHistoryPage() {
           ))}
         </tbody>
       </table>
+
+      <h2>Daily Movement Log</h2>
+      {Object.keys(groupedByDate).length === 0 && <p style={{ color: '#666' }}>No stock movements in this period.</p>}
+      {Object.entries(groupedByDate).map(([date, movements]) => (
+        <div key={date} style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '15px', color: '#333', borderBottom: '1px solid #ccc', paddingBottom: '4px' }}>{date}</h3>
+          {movements.map((m, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '14px' }}>
+              <span>
+                {m.products?.name || 'Unknown'} — <span style={{ textTransform: 'capitalize', color: '#666' }}>{m.reason}</span>
+              </span>
+              <span style={{ color: m.change_qty < 0 ? '#e74c3c' : '#00b386', fontWeight: 'bold' }}>
+                {m.change_qty > 0 ? '+' : ''}{m.change_qty}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
