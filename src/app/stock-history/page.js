@@ -9,7 +9,7 @@ export default function StockHistoryPage() {
   const [businessId, setBusinessId] = useState(null)
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState('')
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [period, setPeriod] = useState('today')
   const [rows, setRows] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
@@ -36,6 +36,21 @@ export default function StockHistoryPage() {
     if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
   }
 
+  const getStartDate = () => {
+    const now = new Date()
+    let start = new Date()
+    if (period === 'today') {
+      start.setHours(0, 0, 0, 0)
+    } else if (period === 'week') {
+      start.setDate(now.getDate() - 7)
+    } else if (period === 'month') {
+      start.setDate(now.getDate() - 30)
+    } else if (period === 'year') {
+      start.setDate(now.getDate() - 365)
+    }
+    return start
+  }
+
   const fetchOpeningStock = async () => {
     if (!branchId) return
 
@@ -50,7 +65,7 @@ export default function StockHistoryPage() {
       return
     }
 
-    const startOfDay = new Date(selectedDate + 'T00:00:00')
+    const startDate = getStartDate()
 
     const results = []
     for (const p of products) {
@@ -62,16 +77,16 @@ export default function StockHistoryPage() {
         .select('change_qty')
         .eq('product_id', p.id)
         .eq('branch_id', branchId)
-        .gte('created_at', startOfDay.toISOString())
+        .gte('created_at', startDate.toISOString())
 
-      const changesSinceThen = (movements || []).reduce((sum, m) => sum + m.change_qty, 0)
-      const openingStock = currentQty - changesSinceThen
+      const changesSincePeriodStart = (movements || []).reduce((sum, m) => sum + m.change_qty, 0)
+      const openingStock = currentQty - changesSincePeriodStart
 
       results.push({
         name: p.name,
         openingStock,
         currentQty,
-        netChange: changesSinceThen,
+        netChange: changesSincePeriodStart,
       })
     }
 
@@ -84,9 +99,16 @@ export default function StockHistoryPage() {
 
   useEffect(() => {
     if (authorized && branchId) fetchOpeningStock()
-  }, [authorized, branchId, selectedDate])
+  }, [authorized, branchId, period])
 
   if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
+
+  const periodLabel = {
+    today: "Opening stock at start of today",
+    week: "Opening stock 7 days ago",
+    month: "Opening stock 30 days ago",
+    year: "Opening stock 1 year ago",
+  }[period]
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
@@ -101,32 +123,41 @@ export default function StockHistoryPage() {
       </div>
       <p>{message}</p>
 
-      <div style={{ display: 'flex', gap: '20px', marginTop: '15px', marginBottom: '20px' }}>
-        <label>
-          Branch:{' '}
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Date:{' '}
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            style={{ padding: '6px' }}
-          />
-        </label>
+      <div style={{ marginTop: '15px', marginBottom: '15px' }}>
+        {['today', 'week', 'month', 'year'].map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            style={{
+              padding: '8px 16px',
+              marginRight: '10px',
+              backgroundColor: period === p ? '#1a73e8' : '#eee',
+              color: period === p ? 'white' : 'black',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            {p === 'today' ? 'Today' : p === 'week' ? 'Last 7 Days' : p === 'month' ? 'Last 30 Days' : 'This Year'}
+          </button>
+        ))}
       </div>
+
+      <label style={{ display: 'block', marginBottom: '15px' }}>
+        Branch:{' '}
+        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
+      </label>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
             <th style={{ padding: '8px' }}>Product</th>
-            <th style={{ padding: '8px' }}>Opening Stock (start of day)</th>
-            <th style={{ padding: '8px' }}>Net Change That Day</th>
+            <th style={{ padding: '8px' }}>{periodLabel}</th>
+            <th style={{ padding: '8px' }}>Net Change</th>
             <th style={{ padding: '8px' }}>Current Stock</th>
           </tr>
         </thead>
