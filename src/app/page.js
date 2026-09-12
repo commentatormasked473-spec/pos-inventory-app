@@ -14,7 +14,7 @@ export default function Home() {
         <p style={{ fontSize: '20px', maxWidth: '600px', margin: '0 auto 30px' }}>
           Point of Sale & Inventory Management built for Kenyan small businesses.
           Track stock, sales, staff, and customer debts — all in one simple app.
-        </p>
+               </p>
         
           href="https://wa.me/254796136938"
           style={{
