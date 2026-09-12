@@ -1,190 +1,92 @@
-'use client'
-
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
-
-const BUSINESS_ID = 'ce9c8d78-d29f-470d-bd14-fb2a58eac310'
-
-export default function ProductsPage() {
-  const [branches, setBranches] = useState([])
-  const [branchId, setBranchId] = useState('')
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
-  const [costPrice, setCostPrice] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [message, setMessage] = useState('')
-  const [products, setProducts] = useState([])
-  const [authorized, setAuthorized] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    getCurrentAppUser().then((u) => {
-      if (!u || u.role !== 'owner') {
-        router.push('/checkout')
-        return
-      }
-      setAuthorized(true)
-    })
-  }, [])
-
-  const fetchBranches = async () => {
-    const { data } = await supabase
-      .from('branches')
-      .select('id, name')
-      .eq('business_id', BUSINESS_ID)
-      .order('name')
-    setBranches(data || [])
-    if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
-  }
-
-  const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        id,
-        name,
-        price,
-        cost_price,
-        reorder_level,
-        branch_stock ( quantity, branch_id )
-      `)
-      .eq('business_id', BUSINESS_ID)
-      .order('name')
-
-    if (!error) setProducts(data)
-  }
-
-  useEffect(() => {
-    if (authorized) {
-      fetchBranches()
-      fetchProducts()
-    }
-  }, [authorized])
-
-  const handleAddProduct = async () => {
-    if (!branchId) {
-      setMessage('Please select a branch first.')
-      return
-    }
-
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .insert({
-        business_id: BUSINESS_ID,
-        name,
-        price: parseFloat(price),
-        cost_price: parseFloat(costPrice),
-      })
-      .select()
-      .single()
-
-    if (productError) {
-      setMessage('Error creating product: ' + productError.message)
-      return
-    }
-
-    const { error: stockError } = await supabase.from('branch_stock').insert({
-      product_id: product.id,
-      branch_id: branchId,
-      quantity: parseInt(quantity),
-    })
-
-    if (stockError) {
-      setMessage('Product created, but stock failed: ' + stockError.message)
-      return
-    }
-
-    setMessage(`✅ Added "${name}" to selected branch!`)
-    setName('')
-    setPrice('')
-    setCostPrice('')
-    setQuantity('')
-    fetchProducts()
-  }
-
-  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
-
+export default function Home() {
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
-      <h1>Add Product</h1>
-
-      <label style={{ display: 'block', marginBottom: '15px' }}>
-        Add stock to branch:{' '}
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={{ padding: '6px' }}>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </label>
-
-      <input
-        type="text"
-        placeholder="Product name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Selling price"
-        value={price}
-        onChange={(e) => setPrice(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Cost price"
-        value={costPrice}
-        onChange={(e) => setCostPrice(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Starting stock quantity"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <button
-        onClick={handleAddProduct}
-        style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
+    <div style={{ fontFamily: 'sans-serif', color: '#222' }}>
+      {/* Hero */}
+      <section
+        style={{
+          background: 'linear-gradient(135deg, #00c6ff, #00ffb3)',
+          padding: '80px 20px',
+          textAlign: 'center',
+          color: 'white',
+        }}
       >
-        Add Product
-      </button>
-      <p>{message}</p>
+        <h1 style={{ fontSize: '42px', marginBottom: '10px' }}>SCO Tech POS</h1>
+        <p style={{ fontSize: '20px', maxWidth: '600px', margin: '0 auto 30px' }}>
+          Point of Sale & Inventory Management built for Kenyan small businesses.
+          Track stock, sales, staff, and customer debts — all in one simple app.
+        </p>
+        
+          href="https://wa.me/254796136938"
+          style={{
+            display: 'inline-block',
+            padding: '14px 28px',
+            backgroundColor: '#1a73e8',
+            color: 'white',
+            borderRadius: '8px',
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: '16px',
+          }}
+        >
+          Chat with us on WhatsApp
+        </a>
+      </section>
 
-      <h2 style={{ marginTop: '40px' }}>Your Products (all branches)</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-            <th style={{ padding: '8px' }}>Name</th>
-            <th style={{ padding: '8px' }}>Price</th>
-            <th style={{ padding: '8px' }}>Stock by Branch</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((p) => (
-            <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '8px' }}>{p.name}</td>
-              <td style={{ padding: '8px' }}>KES {p.price}</td>
-              <td style={{ padding: '8px' }}>
-                {branches.map((b) => {
-                  const stockRow = p.branch_stock?.find((s) => s.branch_id === b.id)
-                  const qty = stockRow?.quantity ?? 0
-                  const low = qty <= p.reorder_level
-                  return (
-                    <div key={b.id} style={{ color: low ? 'red' : 'black' }}>
-                      {b.name}: {qty} {low ? '⚠️' : ''}
-                    </div>
-                  )
-                })}
-              </td>
-            </tr>
+      {/* Features */}
+      <section style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '40px' }}>Everything your shop needs</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
+          {[
+            { title: 'Fast Checkout', desc: 'Ring up sales quickly with product search, discounts, and instant receipts.' },
+            { title: 'Inventory Tracking', desc: 'Stock updates automatically with every sale. Get low-stock alerts before you run out.' },
+            { title: 'Multi-Branch', desc: 'Manage stock and staff across multiple shop locations from one account.' },
+            { title: 'Staff Accounts', desc: 'Give each cashier their own login. Owners see reports; cashiers just see checkout.' },
+            { title: 'Customer Credit', desc: 'Track goods sold on credit and record payments as customers pay off their debt.' },
+            { title: 'Sales Reports', desc: 'See daily, weekly, monthly, and yearly sales, profit, and best-selling products.' },
+          ].map((f) => (
+            <div key={f.title} style={{ padding: '20px', border: '1px solid #eee', borderRadius: '10px' }}>
+              <h3 style={{ marginBottom: '8px', color: '#1a73e8' }}>{f.title}</h3>
+              <p style={{ color: '#555', fontSize: '15px', lineHeight: '1.5' }}>{f.desc}</p>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section style={{ padding: '60px 20px', backgroundColor: '#f7f9fc' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '40px' }}>Simple pricing</h2>
+        <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '900px', margin: '0 auto' }}>
+          {[
+            { name: 'Starter', price: 'KES 1,000/mo', desc: 'Single branch, core POS & inventory' },
+            { name: 'Standard', price: 'KES 2,000/mo', desc: 'Adds customer credit, supplier orders' },
+            { name: 'Multi-Branch', price: 'KES 3,500/mo', desc: 'Multiple branches, unlimited staff' },
+          ].map((tier) => (
+            <div key={tier.name} style={{ padding: '30px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '250px', textAlign: 'center' }}>
+              <h3>{tier.name}</h3>
+              <p style={{ fontSize: '22px', fontWeight: 'bold', color: '#1a73e8', margin: '10px 0' }}>{tier.price}</p>
+              <p style={{ color: '#666', fontSize: '14px' }}>{tier.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section style={{ padding: '60px 20px', textAlign: 'center' }}>
+        <h2 style={{ marginBottom: '15px' }}>Ready to get started?</h2>
+        <p style={{ color: '#555', marginBottom: '25px' }}>
+          Reach out and we'll set up your shop's account for you.
+        </p>
+        <p style={{ fontSize: '16px' }}>
+          📞 Call or WhatsApp: <a href="tel:0796136938" style={{ color: '#1a73e8' }}>0796 136 938</a>
+        </p>
+        <p style={{ fontSize: '16px' }}>
+          ✉️ Email: <a href="mailto:csternly@gmail.com" style={{ color: '#1a73e8' }}>csternly@gmail.com</a>
+        </p>
+      </section>
+
+      <footer style={{ padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px', borderTop: '1px solid #eee' }}>
+        © {new Date().getFullYear()} SCO Tech. All rights reserved.
+      </footer>
     </div>
   )
 }
