@@ -1,7 +1,6 @@
 export default function Home() {
   return (
     <div style={{ fontFamily: 'sans-serif', color: '#222' }}>
-      {/* Hero */}
       <section
         style={{
           background: 'linear-gradient(135deg, #00c6ff, #00ffb3)',
@@ -12,9 +11,9 @@ export default function Home() {
       >
         <h1 style={{ fontSize: '42px', marginBottom: '10px' }}>SCO Tech POS</h1>
         <p style={{ fontSize: '20px', maxWidth: '600px', margin: '0 auto 30px' }}>
-          Point of Sale & Inventory Management built for Kenyan small businesses.
-          Track stock, sales, staff, and customer debts — all in one simple app.
-               </p>
+          Point of Sale and Inventory Management built for Kenyan small businesses.
+          Track stock, sales, staff, and customer debts, all in one simple app.
+        </p>
         
           href="https://wa.me/254796136938"
           style={{
@@ -32,7 +31,6 @@ export default function Home() {
         </a>
       </section>
 
-      {/* Features */}
       <section style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '40px' }}>Everything your shop needs</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
@@ -52,12 +50,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing */}
       <section style={{ padding: '60px 20px', backgroundColor: '#f7f9fc' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '40px' }}>Simple pricing</h2>
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '900px', margin: '0 auto' }}>
           {[
-            { name: 'Starter', price: 'KES 1,000/mo', desc: 'Single branch, core POS & inventory' },
+            { name: 'Starter', price: 'KES 1,000/mo', desc: 'Single branch, core POS and inventory' },
             { name: 'Standard', price: 'KES 2,000/mo', desc: 'Adds customer credit, supplier orders' },
             { name: 'Multi-Branch', price: 'KES 3,500/mo', desc: 'Multiple branches, unlimited staff' },
           ].map((tier) => (
@@ -70,22 +67,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Contact */}
       <section style={{ padding: '60px 20px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '15px' }}>Ready to get started?</h2>
         <p style={{ color: '#555', marginBottom: '25px' }}>
-          Reach out and we'll set up your shop's account for you.
+          Reach out and we will set up your shop's account for you.
         </p>
         <p style={{ fontSize: '16px' }}>
-          📞 Call or WhatsApp: <a href="tel:0796136938" style={{ color: '#1a73e8' }}>0796 136 938</a>
+          Call or WhatsApp: <a href="tel:0796136938" style={{ color: '#1a73e8' }}>0796 136 938</a>
         </p>
         <p style={{ fontSize: '16px' }}>
-          ✉️ Email: <a href="mailto:csternly@gmail.com" style={{ color: '#1a73e8' }}>csternly@gmail.com</a>
+          Email: <a href="mailto:csternly@gmail.com" style={{ color: '#1a73e8' }}>csternly@gmail.com</a>
         </p>
       </section>
 
       <footer style={{ padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px', borderTop: '1px solid #eee' }}>
-        © {new Date().getFullYear()} SCO Tech. All rights reserved.
+        SCO Tech. All rights reserved.
       </footer>
     </div>
   )
