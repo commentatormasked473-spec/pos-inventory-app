@@ -158,35 +158,32 @@ export default function ProductsPage() {
         Add Product
       </button>
       <p>{message}</p>
-
-      <h2 style={{ marginTop: '40px' }}>Your Products (all branches)</h2>
+      <h2 style={{ marginTop: '40px' }}>
+        Your Products — {branches.find((b) => b.id === branchId)?.name || 'Select a branch'}
+      </h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
             <th style={{ padding: '8px' }}>Name</th>
             <th style={{ padding: '8px' }}>Price</th>
-            <th style={{ padding: '8px' }}>Stock by Branch</th>
+            <th style={{ padding: '8px' }}>Stock</th>
           </tr>
         </thead>
         <tbody>
-          {products.map((p) => (
-            <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '8px' }}>{p.name}</td>
-              <td style={{ padding: '8px' }}>KES {p.price}</td>
-              <td style={{ padding: '8px' }}>
-                {branches.map((b) => {
-                  const stockRow = p.branch_stock?.find((s) => s.branch_id === b.id)
-                  const qty = stockRow?.quantity ?? 0
-                  const low = qty <= p.reorder_level
-                  return (
-                    <div key={b.id} style={{ color: low ? 'red' : 'white' }}>
-                      {b.name}: {qty} {low ? '⚠️' : ''}
-                    </div>
-                  )
-                })}
-              </td>
-            </tr>
-          ))}
+          {products.map((p) => {
+            const stockRow = p.branch_stock?.find((s) => s.branch_id === branchId)
+            const qty = stockRow?.quantity ?? 0
+            const low = qty <= p.reorder_level
+            return (
+              <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '8px' }}>{p.name}</td>
+                <td style={{ padding: '8px' }}>KES {p.price}</td>
+                <td style={{ padding: '8px', color: low ? 'red' : 'white' }}>
+                  {qty} {low ? '⚠️' : ''}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
