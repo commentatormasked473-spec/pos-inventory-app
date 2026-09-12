@@ -1,34 +1,10 @@
 ﻿export default function Home() {
   return (
     <div style={{ fontFamily: 'sans-serif', color: '#222' }}>
-      <section
-        style={{
-          background: 'linear-gradient(135deg, #00c6ff, #00ffb3)',
-          padding: '80px 20px',
-          textAlign: 'center',
-          color: 'white',
-        }}
-      >
+      <section style={{ background: 'linear-gradient(135deg, #00c6ff, #00ffb3)', padding: '80px 20px', textAlign: 'center', color: 'white' }}>
         <h1 style={{ fontSize: '42px', marginBottom: '10px' }}>SCO Tech POS</h1>
-        <p style={{ fontSize: '20px', maxWidth: '600px', margin: '0 auto 30px' }}>
-          Point of Sale and Inventory Management built for Kenyan small businesses.
-          Track stock, sales, staff, and customer debts, all in one simple app.
-        </p>
-        
-          href="https://wa.me/254796136938"
-          style={{
-            display: 'inline-block',
-            padding: '14px 28px',
-            backgroundColor: '#1a73e8',
-            color: 'white',
-            borderRadius: '8px',
-            textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: '16px',
-          }}
-        >
-          Chat with us on WhatsApp
-        </a>
+        <p style={{ fontSize: '20px', maxWidth: '600px', margin: '0 auto 30px' }}>Point of Sale and Inventory Management built for Kenyan small businesses. Track stock, sales, staff, and customer debts, all in one simple app.</p>
+        <a href="https://wa.me/254796136938" style={{ display: 'inline-block', padding: '14px 28px', backgroundColor: '#1a73e8', color: 'white', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', fontSize: '16px' }}>Chat with us on WhatsApp</a>
       </section>
 
       <section style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto' }}>
@@ -69,20 +45,12 @@
 
       <section style={{ padding: '60px 20px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '15px' }}>Ready to get started?</h2>
-        <p style={{ color: '#555', marginBottom: '25px' }}>
-          Reach out and we will set up your shop's account for you.
-        </p>
-        <p style={{ fontSize: '16px' }}>
-          Call or WhatsApp: <a href="tel:0796136938" style={{ color: '#1a73e8' }}>0796 136 938</a>
-        </p>
-        <p style={{ fontSize: '16px' }}>
-          Email: <a href="mailto:csternly@gmail.com" style={{ color: '#1a73e8' }}>csternly@gmail.com</a>
-        </p>
+        <p style={{ color: '#555', marginBottom: '25px' }}>Reach out and we will set up your shop's account for you.</p>
+        <p style={{ fontSize: '16px' }}>Call or WhatsApp: <a href="tel:0796136938" style={{ color: '#1a73e8' }}>0796 136 938</a></p>
+        <p style={{ fontSize: '16px' }}>Email: <a href="mailto:csternly@gmail.com" style={{ color: '#1a73e8' }}>csternly@gmail.com</a></p>
       </section>
 
-      <footer style={{ padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px', borderTop: '1px solid #eee' }}>
-        SCO Tech. All rights reserved.
-      </footer>
+      <footer style={{ padding: '20px', textAlign: 'center', color: '#999', fontSize: '13px', borderTop: '1px solid #eee' }}>SCO Tech. All rights reserved.</footer>
     </div>
   )
 }
