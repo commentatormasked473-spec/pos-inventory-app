@@ -26,20 +26,11 @@
         </div>
       </section>
 
-      <section style={{ padding: '60px 20px', backgroundColor: '#f7f9fc' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '40px' }}>Simple pricing</h2>
-        <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '900px', margin: '0 auto' }}>
-          {[
-            { name: 'Starter', price: 'KES 1,000/mo', desc: 'Single branch, core POS and inventory' },
-            { name: 'Standard', price: 'KES 2,000/mo', desc: 'Adds customer credit, supplier orders' },
-            { name: 'Multi-Branch', price: 'KES 3,500/mo', desc: 'Multiple branches, unlimited staff' },
-          ].map((tier) => (
-            <div key={tier.name} style={{ padding: '30px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '250px', textAlign: 'center' }}>
-              <h3>{tier.name}</h3>
-              <p style={{ fontSize: '22px', fontWeight: 'bold', color: '#1a73e8', margin: '10px 0' }}>{tier.price}</p>
-              <p style={{ color: '#666', fontSize: '14px' }}>{tier.desc}</p>
-            </div>
-          ))}
+      <section style={{ padding: '60px 20px', backgroundColor: '#f7f9fc', textAlign: 'center' }}>
+        <h2 style={{ marginBottom: '20px' }}>Simple pricing</h2>
+        <div style={{ display: 'inline-block', padding: '40px 60px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#1a73e8', margin: '0 0 10px' }}>KES 500 / month</p>
+          <p style={{ color: '#666', fontSize: '15px' }}>Flat rate for any type of business, any number of branches</p>
         </div>
       </section>
 
