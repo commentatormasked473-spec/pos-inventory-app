@@ -5,9 +5,11 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
 export default function BarcodeScanner({ onScan, onClose }) {
   const scannerRef = useRef(null)
+  const hasScannedRef = useRef(false)
   const containerId = 'barcode-scanner-container'
 
   useEffect(() => {
+    hasScannedRef.current = false
     const html5QrCode = new Html5Qrcode(containerId, {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13,
@@ -27,8 +29,17 @@ export default function BarcodeScanner({ onScan, onClose }) {
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 150 } },
         (decodedText) => {
+          if (hasScannedRef.current) return
+          hasScannedRef.current = true
+
+          // Report the result first, close the camera in the background after.
           onScan(decodedText)
-          html5QrCode.stop().catch(() => {})
+
+          if (scannerRef.current) {
+            scannerRef.current
+              .stop()
+              .catch(() => {})
+          }
         },
         () => {} // ignore per-frame scan failures, they're constant/normal
       )
@@ -37,11 +48,16 @@ export default function BarcodeScanner({ onScan, onClose }) {
       })
 
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .then(() => scannerRef.current.clear())
-          .catch(() => {})
+      const scanner = scannerRef.current
+      scannerRef.current = null
+      if (scanner) {
+        try {
+          if (scanner.isScanning) {
+            scanner.stop().catch(() => {})
+          }
+        } catch (e) {
+          // component may already be torn down, ignore
+        }
       }
     }
   }, [])
