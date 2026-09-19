@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser, logout } from '@/lib/auth'
 
+const CACHE_KEY_PREFIX = 'pos_sales_cache_'
+
 export default function SalesPage() {
   const [businessId, setBusinessId] = useState(null)
   const [role, setRole] = useState(null)
@@ -13,6 +15,8 @@ export default function SalesPage() {
   const [sales, setSales] = useState([])
   const [message, setMessage] = useState('')
   const [authorized, setAuthorized] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [fromCache, setFromCache] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -28,7 +32,33 @@ export default function SalesPage() {
     })
   }, [])
 
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
+  const cacheKey = () => `${CACHE_KEY_PREFIX}${userId}_today`
+
   const fetchSales = async () => {
+    // Cashiers: if offline, load from cache instead of hitting the network
+    if (role === 'cashier' && !navigator.onLine) {
+      const cached = localStorage.getItem(cacheKey())
+      if (cached) {
+        setSales(JSON.parse(cached))
+        setFromCache(true)
+      } else {
+        setMessage('No offline data saved yet. Connect once today to enable offline viewing.')
+      }
+      return
+    }
+
     let query = supabase
       .from('sales')
       .select(`
@@ -50,12 +80,10 @@ export default function SalesPage() {
       .order('created_at', { ascending: false })
 
     if (role === 'cashier') {
-      // Cashiers always locked to today, regardless of period buttons
       const startOfToday = new Date()
       startOfToday.setHours(0, 0, 0, 0)
       query = query.eq('cashier_id', userId).gte('created_at', startOfToday.toISOString())
     } else {
-      // Owners can pick a date range
       const now = new Date()
       let startDate = new Date()
       if (period === 'today') {
@@ -72,18 +100,31 @@ export default function SalesPage() {
 
     const { data, error } = await query
 
-    if (!error) setSales(data)
-    else setMessage('Error loading sales: ' + error.message)
+    if (!error) {
+      setSales(data)
+      setFromCache(false)
+      // Cashiers: cache today's sales for offline viewing later
+      if (role === 'cashier') {
+        localStorage.setItem(cacheKey(), JSON.stringify(data))
+      }
+    } else {
+      setMessage('Error loading sales: ' + error.message)
+    }
   }
 
   useEffect(() => {
     if (authorized && businessId) fetchSales()
-  }, [authorized, businessId, period])
+  }, [authorized, businessId, period, isOnline])
 
   const refundedQty = (item) =>
     item.refunds?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
 
   const handleRefund = async (item) => {
+    if (!navigator.onLine) {
+      setMessage('Refunds require an internet connection.')
+      return
+    }
+
     const alreadyRefunded = refundedQty(item)
     const remaining = item.quantity - alreadyRefunded
 
@@ -124,7 +165,7 @@ export default function SalesPage() {
       .eq('branch_id', saleRow?.branch_id)
       .single()
 
-     if (stockRow) {
+    if (stockRow) {
       await supabase
         .from('branch_stock')
         .update({ quantity: stockRow.quantity + qty })
@@ -155,6 +196,12 @@ export default function SalesPage() {
           Log Out
         </button>
       </div>
+
+      {!isOnline && (
+        <div style={{ padding: '10px', backgroundColor: '#fde2e2', color: '#c0392b', borderRadius: '6px', margin: '15px 0' }}>
+          You are offline. {fromCache ? 'Showing your last saved view of today\'s sales.' : ''}
+        </div>
+      )}
 
       {role !== 'cashier' && (
         <div style={{ margin: '15px 0' }}>
@@ -196,21 +243,23 @@ export default function SalesPage() {
                   {item.products.name} x{item.quantity} @ KES {item.unit_price}
                   {refunded > 0 ? ` (${refunded} refunded)` : ''}
                 </span>
-                <button
-                  onClick={() => handleRefund({ ...item, sale_id: sale.id })}
-                  disabled={fullyRefunded}
-                  style={{
-                    padding: '4px 10px',
-                    backgroundColor: fullyRefunded ? '#ccc' : '#e74c3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: fullyRefunded ? 'not-allowed' : 'pointer',
-                    fontSize: '13px',
-                  }}
-                >
-                  {fullyRefunded ? 'Refunded' : 'Refund'}
-                </button>
+                {!fromCache && (
+                  <button
+                    onClick={() => handleRefund({ ...item, sale_id: sale.id })}
+                    disabled={fullyRefunded}
+                    style={{
+                      padding: '4px 10px',
+                      backgroundColor: fullyRefunded ? '#ccc' : '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: fullyRefunded ? 'not-allowed' : 'pointer',
+                      fontSize: '13px',
+                    }}
+                  >
+                    {fullyRefunded ? 'Refunded' : 'Refund'}
+                  </button>
+                )}
               </div>
             )
           })}
