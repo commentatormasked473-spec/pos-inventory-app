@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser, logout } from '@/lib/auth'
+import BarcodeScanner from '@/components/BarcodeScanner'
 
 const QUEUE_KEY = 'pos_offline_queue'
 const PRODUCTS_CACHE_KEY = 'pos_products_cache'
@@ -26,6 +27,8 @@ export default function CheckoutPage() {
   const [isOnline, setIsOnline] = useState(true)
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+  const [barcodeInput, setBarcodeInput] = useState('')
   const router = useRouter()
   const syncingRef = useRef(false)
 
@@ -117,7 +120,7 @@ export default function CheckoutPage() {
 
     const { data, error } = await supabase
       .from('products')
-      .select(`id, name, price, branch_stock ( quantity, branch_id )`)
+      .select(`id, name, price, barcode, branch_stock ( quantity, branch_id )`)
       .eq('business_id', businessId)
       .order('name')
 
@@ -153,6 +156,24 @@ export default function CheckoutPage() {
       }
       return [...prev, { product_id: product.id, name: product.name, price: product.price, quantity: 1, discount: 0 }]
     })
+  }
+
+  const lookupBarcode = (code) => {
+    const trimmed = code.trim()
+    if (!trimmed) return
+    const match = products.find((p) => p.barcode && p.barcode === trimmed)
+    if (match) {
+      addToCart(match)
+      setMessage(`Added: ${match.name}`)
+    } else {
+      setMessage(`No product found for barcode "${trimmed}".`)
+    }
+    setBarcodeInput('')
+  }
+
+  const handleScan = (decodedText) => {
+    setShowScanner(false)
+    lookupBarcode(decodedText)
   }
 
   const removeFromCart = (productId) => {
@@ -308,7 +329,6 @@ export default function CheckoutPage() {
       queue.push(saleData)
       saveQueue(queue)
 
-      // Update the local product cache so stock reflects this sale immediately, even offline
       const updatedProducts = products.map((p) => {
         const item = cart.find((c) => c.product_id === p.id)
         if (!item) return p
@@ -412,6 +432,45 @@ export default function CheckoutPage() {
             ))}
           </select>
         </label>
+      )}
+
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
+        <input
+          type="text"
+          placeholder="Scan or type barcode, then Enter"
+          value={barcodeInput}
+          onChange={(e) => setBarcodeInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') lookupBarcode(barcodeInput)
+          }}
+          style={{
+            padding: '10px',
+            flex: 1,
+            borderRadius: '6px',
+            border: '1px solid #ccc',
+            boxSizing: 'border-box',
+            fontSize: '14px',
+          }}
+        />
+        <button
+          onClick={() => setShowScanner(true)}
+          style={{
+            padding: '10px 16px',
+            backgroundColor: '#00b386',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          📷 Scan
+        </button>
+      </div>
+
+      {showScanner && (
+        <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       )}
 
       <div style={{ display: 'flex', gap: '40px' }}>
