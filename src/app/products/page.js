@@ -158,9 +158,32 @@ export default function ProductsPage() {
         Add Product
       </button>
       <p>{message}</p>
-      <h2 style={{ marginTop: '40px' }}>
+           <h2 style={{ marginTop: '40px' }}>
         Your Products — {branches.find((b) => b.id === branchId)?.name || 'Select a branch'}
       </h2>
+
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px' }}>
+          <p style={{ margin: 0, color: '#666' }}>Stock Worth (Cost Price)</p>
+          <h2 style={{ margin: '5px 0' }}>
+            KES {products.reduce((sum, p) => {
+              const stockRow = p.branch_stock?.find((s) => s.branch_id === branchId)
+              const qty = stockRow?.quantity ?? 0
+              return sum + qty * (p.cost_price || 0)
+            }, 0).toFixed(2)}
+          </h2>
+        </div>
+        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0fff5', borderRadius: '8px' }}>
+          <p style={{ margin: 0, color: '#666' }}>Stock Worth (Selling Price)</p>
+          <h2 style={{ margin: '5px 0' }}>
+            KES {products.reduce((sum, p) => {
+              const stockRow = p.branch_stock?.find((s) => s.branch_id === branchId)
+              const qty = stockRow?.quantity ?? 0
+              return sum + qty * (p.price || 0)
+            }, 0).toFixed(2)}
+          </h2>
+        </div>
+      </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
