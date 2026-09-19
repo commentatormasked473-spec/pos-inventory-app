@@ -5,8 +5,10 @@ export const metadata = {
   description: "SCO Tech POS helps Kenyan small businesses manage sales, inventory, staff, and customer credit — all in one simple app. Get started today.",
   manifest: "/manifest.json",
   keywords: "POS system Kenya, inventory management, point of sale, small business software, shop management app",
+  verification: {
+    google: "Ge2MD1xUgZH95P5nfbAtJd24gkCTcLe7K3EUOfQAlHE",
+  },
 };
-
 export const viewport = {
   themeColor: "#1a73e8",
 };
