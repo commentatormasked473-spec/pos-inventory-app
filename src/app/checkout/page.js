@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser, logout } from '@/lib/auth'
+
+const QUEUE_KEY = 'pos_offline_queue'
 
 export default function CheckoutPage() {
   const [businessId, setBusinessId] = useState(null)
@@ -19,7 +21,11 @@ export default function CheckoutPage() {
   const [receipt, setReceipt] = useState(null)
   const [authorized, setAuthorized] = useState(false)
   const [cashierId, setCashierId] = useState(null)
+  const [isOnline, setIsOnline] = useState(true)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [syncing, setSyncing] = useState(false)
   const router = useRouter()
+  const syncingRef = useRef(false)
 
   useEffect(() => {
     getCurrentAppUser().then((u) => {
@@ -37,6 +43,42 @@ export default function CheckoutPage() {
       setAuthorized(true)
     })
   }, [])
+
+  // Track online/offline status
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    updatePendingCount()
+
+    const goOnline = () => {
+      setIsOnline(true)
+      syncQueue()
+    }
+    const goOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [businessId, branchId, cashierId])
+
+  const getQueue = () => {
+    try {
+      return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]')
+    } catch {
+      return []
+    }
+  }
+
+  const saveQueue = (queue) => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
+    setPendingCount(queue.length)
+  }
+
+  const updatePendingCount = () => {
+    setPendingCount(getQueue().length)
+  }
 
   const fetchBranches = async () => {
     const { data } = await supabase
@@ -64,7 +106,10 @@ export default function CheckoutPage() {
   }, [authorized, businessId])
 
   useEffect(() => {
-    if (authorized && branchId) fetchProducts()
+    if (authorized && branchId) {
+      fetchProducts()
+      syncQueue()
+    }
   }, [authorized, branchId])
 
   const getStockForBranch = (product) => {
@@ -99,6 +144,111 @@ export default function CheckoutPage() {
   const itemTotal = (item) => Math.max(0, item.price * item.quantity - item.discount)
   const total = cart.reduce((sum, item) => sum + itemTotal(item), 0)
 
+  // Actually submits one sale to Supabase (used both for online checkout and for syncing queued sales)
+  const submitSale = async (saleData) => {
+    const { data: sale, error: saleError } = await supabase
+      .from('sales')
+      .insert({
+        business_id: saleData.businessId,
+        branch_id: saleData.branchId,
+        cashier_id: saleData.cashierId,
+        total: saleData.total,
+        payment_method: saleData.paymentMethod,
+        created_at: saleData.createdAt,
+      })
+      .select()
+      .single()
+
+    if (saleError) return { error: saleError.message }
+
+    const saleItems = saleData.items.map((item) => ({
+      sale_id: sale.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: item.price,
+    }))
+
+    const { error: itemsError } = await supabase.from('sale_items').insert(saleItems)
+    if (itemsError) return { error: itemsError.message }
+
+    for (const item of saleData.items) {
+      const { data: stockRow } = await supabase
+        .from('branch_stock')
+        .select('id, quantity')
+        .eq('product_id', item.product_id)
+        .eq('branch_id', saleData.branchId)
+        .single()
+
+      if (stockRow) {
+        await supabase
+          .from('branch_stock')
+          .update({ quantity: stockRow.quantity - item.quantity })
+          .eq('id', stockRow.id)
+
+        await supabase.from('stock_movements').insert({
+          product_id: item.product_id,
+          branch_id: saleData.branchId,
+          change_qty: -item.quantity,
+          reason: 'sale',
+        })
+      }
+    }
+
+    if (saleData.paymentMethod === 'credit' && saleData.customerName) {
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .insert({
+          business_id: saleData.businessId,
+          name: saleData.customerName,
+          phone: saleData.customerPhone,
+        })
+        .select()
+        .single()
+
+      if (!customerError) {
+        await supabase.from('credit_accounts').insert({
+          sale_id: sale.id,
+          customer_id: customer.id,
+          amount_owed: saleData.total,
+          amount_paid: 0,
+          status: 'unpaid',
+        })
+      }
+    }
+
+    return { error: null, saleId: sale.id }
+  }
+
+  // Syncs every queued offline sale, in order, stopping if one fails
+  const syncQueue = async () => {
+    if (syncingRef.current) return
+    if (!navigator.onLine) return
+    const queue = getQueue()
+    if (queue.length === 0) return
+
+    syncingRef.current = true
+    setSyncing(true)
+
+    const remaining = [...queue]
+    while (remaining.length > 0) {
+      const saleData = remaining[0]
+      const { error } = await submitSale(saleData)
+      if (error) {
+        setMessage('Sync error, will retry: ' + error)
+        break
+      }
+      remaining.shift()
+      saveQueue(remaining)
+    }
+
+    setSyncing(false)
+    syncingRef.current = false
+    if (remaining.length === 0) {
+      setMessage('✅ All offline sales synced!')
+      fetchProducts()
+    }
+  }
+
   const handleCompleteSale = async () => {
     if (cart.length === 0) {
       setMessage('Cart is empty.')
@@ -110,95 +260,37 @@ export default function CheckoutPage() {
       return
     }
 
-    const { data: sale, error: saleError } = await supabase
-      .from('sales')
-      .insert({
-        business_id: businessId,
-        branch_id: branchId,
-        cashier_id: cashierId,
-        total: total,
-        payment_method: paymentMethod,
-      })
-      .select()
-      .single()
-
-    if (saleError) {
-      setMessage('Error creating sale: ' + saleError.message)
-      return
-    }
-
-    const saleItems = cart.map((item) => ({
-      sale_id: sale.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.price,
-    }))
-
-    const { error: itemsError } = await supabase.from('sale_items').insert(saleItems)
-
-    if (itemsError) {
-      setMessage('Sale created, but items failed: ' + itemsError.message)
-      return
-    }
-
-       for (const item of cart) {
-      const { data: stockRow } = await supabase
-        .from('branch_stock')
-        .select('id, quantity')
-        .eq('product_id', item.product_id)
-        .eq('branch_id', branchId)
-        .single()
-
-      if (stockRow) {
-        await supabase
-          .from('branch_stock')
-          .update({ quantity: stockRow.quantity - item.quantity })
-          .eq('id', stockRow.id)
-
-        await supabase.from('stock_movements').insert({
-          product_id: item.product_id,
-          branch_id: branchId,
-          change_qty: -item.quantity,
-          reason: 'sale',
-        })
-      }
-    }
-
-    if (paymentMethod === 'credit') {
-      const { data: customer, error: customerError } = await supabase
-        .from('customers')
-        .insert({
-          business_id: businessId,
-          name: customerName,
-          phone: customerPhone,
-        })
-        .select()
-        .single()
-
-      if (!customerError) {
-        await supabase.from('credit_accounts').insert({
-          sale_id: sale.id,
-          customer_id: customer.id,
-          amount_owed: total,
-          amount_paid: 0,
-          status: 'unpaid',
-        })
-      }
-    }
-
-    setReceipt({
+    const saleData = {
+      businessId,
+      branchId,
+      cashierId,
       items: cart,
-      total,
       paymentMethod,
       customerName,
-      date: new Date().toLocaleString(),
-      saleId: sale.id,
-    })
+      customerPhone,
+      total,
+      createdAt: new Date().toISOString(),
+    }
+
+    if (navigator.onLine) {
+      const { error, saleId } = await submitSale(saleData)
+      if (error) {
+        setMessage('Error creating sale: ' + error)
+        return
+      }
+      setReceipt({ ...saleData, saleId, pending: false })
+    } else {
+      const queue = getQueue()
+      queue.push(saleData)
+      saveQueue(queue)
+      setReceipt({ ...saleData, saleId: 'pending', pending: true })
+    }
+
     setMessage('')
     setCart([])
     setCustomerName('')
     setCustomerPhone('')
-    fetchProducts()
+    if (navigator.onLine) fetchProducts()
   }
 
   if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
@@ -215,8 +307,12 @@ export default function CheckoutPage() {
             Log Out
           </button>
         </div>
-        <p>{receipt.date}</p>
-        <p>Sale ID: {receipt.saleId.slice(0, 8)}</p>
+        {receipt.pending && (
+          <p style={{ backgroundColor: '#fff3cd', padding: '10px', borderRadius: '6px', color: '#8a6d00' }}>
+            Saved offline — will sync automatically once you're back online.
+          </p>
+        )}
+        <p>{new Date(receipt.createdAt).toLocaleString()}</p>
         {receipt.customerName && <p>Customer: {receipt.customerName}</p>}
         <hr />
         {receipt.items.map((item) => (
@@ -228,9 +324,6 @@ export default function CheckoutPage() {
         <hr />
         <h3>Total: KES {receipt.total}</h3>
         <p>Paid via: {receipt.paymentMethod}</p>
-        {receipt.paymentMethod === 'credit' && (
-          <p style={{ color: '#e74c3c', fontWeight: 'bold' }}>Amount owed by customer</p>
-        )}
         <button
           onClick={() => setReceipt(null)}
           style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
@@ -246,12 +339,8 @@ export default function CheckoutPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Checkout</h1>
         <div>
-          <a href="/sales" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>
-            My Sales Today
-          </a>
-          <a href="/credit-payments" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>
-            Credit Payments
-          </a>
+          <a href="/sales" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>My Sales Today</a>
+          <a href="/credit-payments" style={{ marginRight: '15px', color: '#1a73e8', fontWeight: 'bold', textDecoration: 'none' }}>Credit Payments</a>
           <button
             onClick={logout}
             style={{ padding: '8px 16px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
@@ -260,6 +349,18 @@ export default function CheckoutPage() {
           </button>
         </div>
       </div>
+
+      {!isOnline && (
+        <div style={{ padding: '10px', backgroundColor: '#fde2e2', color: '#c0392b', borderRadius: '6px', marginTop: '15px' }}>
+          You are offline. Sales will be saved and synced automatically once connection returns.
+        </div>
+      )}
+      {isOnline && pendingCount > 0 && (
+        <div style={{ padding: '10px', backgroundColor: '#fff3cd', color: '#8a6d00', borderRadius: '6px', marginTop: '15px' }}>
+          {syncing ? 'Syncing...' : `${pendingCount} sale(s) waiting to sync.`}
+        </div>
+      )}
+      <p>{message}</p>
 
       {branches.length === 0 ? (
         <p style={{ color: '#e74c3c', marginTop: '15px' }}>No branch set up yet. Ask your business owner to add one.</p>
@@ -307,19 +408,16 @@ export default function CheckoutPage() {
                     borderBottom: '1px solid #eee',
                   }}
                 >
-                  <span>
-                    {p.name} — KES {p.price} ({stock} in stock)
-                  </span>
+                  <span>{p.name} — KES {p.price} ({stock} in stock)</span>
                   <button
                     onClick={() => addToCart(p)}
-                    disabled={stock <= 0}
                     style={{
                       padding: '6px 12px',
-                      backgroundColor: stock <= 0 ? '#ccc' : '#1a73e8',
+                      backgroundColor: '#1a73e8',
                       color: 'white',
                       border: 'none',
                       borderRadius: '6px',
-                      cursor: stock <= 0 ? 'not-allowed' : 'pointer',
+                      cursor: 'pointer',
                     }}
                   >
                     Add
@@ -400,7 +498,6 @@ export default function CheckoutPage() {
           >
             Complete Sale
           </button>
-          <p>{message}</p>
         </div>
       </div>
     </div>
