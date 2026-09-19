@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentAppUser } from '@/lib/auth'
 
 function usernameToEmail(username) {
   return username.trim().toLowerCase().replace(/\s+/g, '') + '@posapp.local'
@@ -15,6 +16,18 @@ export default function LoginPage() {
   const router = useRouter()
 
   const handleLogin = async () => {
+    if (!navigator.onLine) {
+      const existingUser = await getCurrentAppUser()
+      if (existingUser) {
+        if (existingUser.role === 'admin') router.push('/admin')
+        else if (existingUser.role === 'owner') router.push('/dashboard')
+        else router.push('/checkout')
+        return
+      }
+      setMessage('You are offline and have never logged in on this device before. Connect to the internet once to log in for the first time.')
+      return
+    }
+
     const email = usernameToEmail(username)
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
@@ -32,6 +45,8 @@ export default function LoginPage() {
       setMessage('Logged in, but your account is not linked to a business yet.')
       return
     }
+
+    await getCurrentAppUser()
 
     if (appUser.role === 'admin') {
       router.push('/admin')
