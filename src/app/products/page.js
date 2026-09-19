@@ -19,6 +19,8 @@ export default function ProductsPage() {
   const [message, setMessage] = useState('')
   const [products, setProducts] = useState([])
   const [authorized, setAuthorized] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -129,6 +131,47 @@ export default function ProductsPage() {
   const handleScan = (decodedText) => {
     setShowScanner(false)
     setBarcode(decodedText)
+  }
+
+  const handleDeleteProduct = async (product) => {
+    setDeletingId(product.id)
+    setMessage('')
+
+    // Remove branch_stock rows first — these don't carry sales history,
+    // so it's safe to clear them before deleting the product itself.
+    const { error: stockDeleteError } = await supabase
+      .from('branch_stock')
+      .delete()
+      .eq('product_id', product.id)
+
+    if (stockDeleteError) {
+      setMessage('Could not remove stock records: ' + stockDeleteError.message)
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+      return
+    }
+
+    const { error: productDeleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', product.id)
+
+    if (productDeleteError) {
+      // Most likely cause: this product has sale history (sale_items /
+      // stock_movements reference it), so the database is refusing to
+      // delete it to protect that history.
+      setMessage(
+        `Could not delete "${product.name}". It likely has sales history tied to it, so it can't be permanently removed. (${productDeleteError.message})`
+      )
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+      return
+    }
+
+    setMessage(`🗑️ "${product.name}" was permanently deleted.`)
+    setDeletingId(null)
+    setConfirmDeleteId(null)
+    fetchProducts()
   }
 
   if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
@@ -248,6 +291,7 @@ export default function ProductsPage() {
             <th style={{ padding: '8px' }}>Price</th>
             <th style={{ padding: '8px' }}>Barcode</th>
             <th style={{ padding: '8px' }}>Stock</th>
+            <th style={{ padding: '8px' }}></th>
           </tr>
         </thead>
         <tbody>
@@ -255,6 +299,8 @@ export default function ProductsPage() {
             const stockRow = p.branch_stock?.find((s) => s.branch_id === branchId)
             const qty = stockRow?.quantity ?? 0
             const low = qty <= p.reorder_level
+            const isConfirming = confirmDeleteId === p.id
+            const isDeleting = deletingId === p.id
             return (
               <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '8px' }}>{p.name}</td>
@@ -262,6 +308,58 @@ export default function ProductsPage() {
                 <td style={{ padding: '8px', color: '#888' }}>{p.barcode || '—'}</td>
                 <td style={{ padding: '8px', color: low ? 'red' : 'white' }}>
                   {qty} {low ? '⚠️' : ''}
+                </td>
+                <td style={{ padding: '8px', textAlign: 'right' }}>
+                  {isConfirming ? (
+                    <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', color: '#e74c3c' }}>Delete permanently?</span>
+                      <button
+                        onClick={() => handleDeleteProduct(p)}
+                        disabled={isDeleting}
+                        style={{
+                          padding: '4px 10px',
+                          backgroundColor: '#e74c3c',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: isDeleting ? 'default' : 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {isDeleting ? 'Deleting...' : 'Yes, delete'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        disabled={isDeleting}
+                        style={{
+                          padding: '4px 10px',
+                          backgroundColor: '#ccc',
+                          color: '#333',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(p.id)}
+                      style={{
+                        padding: '4px 10px',
+                        backgroundColor: 'transparent',
+                        color: '#e74c3c',
+                        border: '1px solid #e74c3c',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             )
