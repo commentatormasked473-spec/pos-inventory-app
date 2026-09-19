@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentAppUser, logout } from '@/lib/auth'
 
 const QUEUE_KEY = 'pos_offline_queue'
+const PRODUCTS_CACHE_KEY = 'pos_products_cache'
+const BRANCHES_CACHE_KEY = 'pos_branches_cache'
 
 export default function CheckoutPage() {
   const [businessId, setBusinessId] = useState(null)
@@ -44,7 +46,6 @@ export default function CheckoutPage() {
     })
   }, [])
 
-  // Track online/offline status
   useEffect(() => {
     setIsOnline(navigator.onLine)
     updatePendingCount()
@@ -81,6 +82,16 @@ export default function CheckoutPage() {
   }
 
   const fetchBranches = async () => {
+    if (!navigator.onLine) {
+      const cached = localStorage.getItem(BRANCHES_CACHE_KEY)
+      if (cached) {
+        const data = JSON.parse(cached)
+        setBranches(data)
+        if (data.length > 0 && !branchId) setBranchId(data[0].id)
+      }
+      return
+    }
+
     const { data } = await supabase
       .from('branches')
       .select('id, name')
@@ -88,17 +99,32 @@ export default function CheckoutPage() {
       .order('name')
     setBranches(data || [])
     if (data && data.length > 0 && !branchId) setBranchId(data[0].id)
+    if (data) localStorage.setItem(BRANCHES_CACHE_KEY, JSON.stringify(data))
   }
 
   const fetchProducts = async () => {
     if (!branchId) return
+
+    if (!navigator.onLine) {
+      const cached = localStorage.getItem(PRODUCTS_CACHE_KEY)
+      if (cached) {
+        setProducts(JSON.parse(cached))
+      } else {
+        setMessage('No offline product data saved yet. Connect once to enable offline checkout.')
+      }
+      return
+    }
+
     const { data, error } = await supabase
       .from('products')
       .select(`id, name, price, branch_stock ( quantity, branch_id )`)
       .eq('business_id', businessId)
       .order('name')
 
-    if (!error) setProducts(data)
+    if (!error) {
+      setProducts(data)
+      localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(data))
+    }
   }
 
   useEffect(() => {
@@ -144,7 +170,6 @@ export default function CheckoutPage() {
   const itemTotal = (item) => Math.max(0, item.price * item.quantity - item.discount)
   const total = cart.reduce((sum, item) => sum + itemTotal(item), 0)
 
-  // Actually submits one sale to Supabase (used both for online checkout and for syncing queued sales)
   const submitSale = async (saleData) => {
     const { data: sale, error: saleError } = await supabase
       .from('sales')
@@ -219,7 +244,6 @@ export default function CheckoutPage() {
     return { error: null, saleId: sale.id }
   }
 
-  // Syncs every queued offline sale, in order, stopping if one fails
   const syncQueue = async () => {
     if (syncingRef.current) return
     if (!navigator.onLine) return
@@ -283,6 +307,21 @@ export default function CheckoutPage() {
       const queue = getQueue()
       queue.push(saleData)
       saveQueue(queue)
+
+      // Update the local product cache so stock reflects this sale immediately, even offline
+      const updatedProducts = products.map((p) => {
+        const item = cart.find((c) => c.product_id === p.id)
+        if (!item) return p
+        return {
+          ...p,
+          branch_stock: p.branch_stock.map((s) =>
+            s.branch_id === branchId ? { ...s, quantity: s.quantity - item.quantity } : s
+          ),
+        }
+      })
+      setProducts(updatedProducts)
+      localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(updatedProducts))
+
       setReceipt({ ...saleData, saleId: 'pending', pending: true })
     }
 
@@ -352,7 +391,7 @@ export default function CheckoutPage() {
 
       {!isOnline && (
         <div style={{ padding: '10px', backgroundColor: '#fde2e2', color: '#c0392b', borderRadius: '6px', marginTop: '15px' }}>
-          You are offline. Sales will be saved and synced automatically once connection returns.
+          You are offline. Using saved product data. Sales will sync automatically once connection returns.
         </div>
       )}
       {isOnline && pendingCount > 0 && (
@@ -363,7 +402,7 @@ export default function CheckoutPage() {
       <p>{message}</p>
 
       {branches.length === 0 ? (
-        <p style={{ color: '#e74c3c', marginTop: '15px' }}>No branch set up yet. Ask your business owner to add one.</p>
+        <p style={{ color: '#e74c3c', marginTop: '15px' }}>No branch data available. Connect to the internet at least once.</p>
       ) : (
         <label style={{ display: 'block', marginBottom: '15px', marginTop: '15px' }}>
           Branch:{' '}
