@@ -306,7 +306,7 @@ export default function ProductsPage() {
                 <td style={{ padding: '8px' }}>{p.name}</td>
                 <td style={{ padding: '8px' }}>KES {p.price}</td>
                 <td style={{ padding: '8px', color: '#888' }}>{p.barcode || '—'}</td>
-                <td style={{ padding: '8px', color: low ? 'red' : 'white' }}>
+                <td style={{ padding: '8px', color: low ? 'red' : '#222' }}>
                   {qty} {low ? '⚠️' : ''}
                 </td>
                 <td style={{ padding: '8px', textAlign: 'right' }}>
