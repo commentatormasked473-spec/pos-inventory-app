@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -119,7 +119,7 @@ export default function ProductsPage() {
       return
     }
 
-    setMessage(`✅ Added "${name}" to selected branch!`)
+    setMessage(`Added "${name}" to selected branch!`)
     setName('')
     setPrice('')
     setCostPrice('')
@@ -137,38 +137,16 @@ export default function ProductsPage() {
     setDeletingId(product.id)
     setMessage('')
 
-    // Remove branch_stock rows first — these don't carry sales history,
-    // so it's safe to clear them before deleting the product itself.
-    const { error: stockDeleteError } = await supabase
-      .from('branch_stock')
-      .delete()
-      .eq('product_id', product.id)
+    const { error } = await supabase.rpc('delete_product_permanently', { p_product_id: product.id })
 
-    if (stockDeleteError) {
-      setMessage('Could not remove stock records: ' + stockDeleteError.message)
+    if (error) {
+      setMessage('Error deleting product: ' + error.message)
       setDeletingId(null)
       setConfirmDeleteId(null)
       return
     }
 
-    const { error: productDeleteError } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', product.id)
-
-    if (productDeleteError) {
-      // Most likely cause: this product has sale history (sale_items /
-      // stock_movements reference it), so the database is refusing to
-      // delete it to protect that history.
-      setMessage(
-        `Could not delete "${product.name}". It likely has sales history tied to it, so it can't be permanently removed. (${productDeleteError.message})`
-      )
-      setDeletingId(null)
-      setConfirmDeleteId(null)
-      return
-    }
-
-    setMessage(`🗑️ "${product.name}" was permanently deleted.`)
+    setMessage('"' + product.name + '" was permanently deleted.')
     setDeletingId(null)
     setConfirmDeleteId(null)
     fetchProducts()
@@ -181,7 +159,7 @@ export default function ProductsPage() {
       <h1>Add Product</h1>
 
       {branches.length === 0 ? (
-        <p style={{ color: '#e74c3c' }}>You need to add a branch first — go to Branches in your dashboard.</p>
+        <p style={{ color: '#e74c3c' }}>You need to add a branch first - go to Branches in your dashboard.</p>
       ) : (
         <label style={{ display: 'block', marginBottom: '15px' }}>
           Add stock to branch:{' '}
@@ -193,73 +171,25 @@ export default function ProductsPage() {
         </label>
       )}
 
-      <input
-        type="text"
-        placeholder="Product name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Selling price"
-        value={price}
-        onChange={(e) => setPrice(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Cost price"
-        value={costPrice}
-        onChange={(e) => setCostPrice(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
-      <input
-        type="number"
-        placeholder="Starting stock quantity"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }}
-      />
+      <input type="text" placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }} />
+      <input type="number" placeholder="Selling price" value={price} onChange={(e) => setPrice(e.target.value)} style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }} />
+      <input type="number" placeholder="Cost price" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }} />
+      <input type="number" placeholder="Starting stock quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ display: 'block', marginBottom: '10px', padding: '8px', width: '100%' }} />
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-        <input
-          type="text"
-          placeholder="Barcode (optional — type or scan)"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-          style={{ flex: 1, padding: '8px' }}
-        />
-        <button
-          type="button"
-          onClick={() => setShowScanner(true)}
-          style={{
-            padding: '8px 14px',
-            backgroundColor: '#00b386',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          📷 Scan
-        </button>
+        <input type="text" placeholder="Barcode (optional - type or scan)" value={barcode} onChange={(e) => setBarcode(e.target.value)} style={{ flex: 1, padding: '8px' }} />
+        <button type="button" onClick={() => setShowScanner(true)} style={{ padding: '8px 14px', backgroundColor: '#00b386', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Scan</button>
       </div>
 
       {showScanner && (
         <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       )}
 
-      <button
-        onClick={handleAddProduct}
-        style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}
-      >
-        Add Product
-      </button>
+      <button onClick={handleAddProduct} style={{ padding: '8px 16px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '6px' }}>Add Product</button>
       <p>{message}</p>
+
       <h2 style={{ marginTop: '40px' }}>
-        Your Products — {branches.find((b) => b.id === branchId)?.name || 'Select a branch'}
+        Your Products - {branches.find((b) => b.id === branchId)?.name || 'Select a branch'}
       </h2>
 
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
@@ -284,6 +214,7 @@ export default function ProductsPage() {
           </h2>
         </div>
       </div>
+
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
@@ -305,60 +236,17 @@ export default function ProductsPage() {
               <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '8px' }}>{p.name}</td>
                 <td style={{ padding: '8px' }}>KES {p.price}</td>
-                <td style={{ padding: '8px', color: '#888' }}>{p.barcode || '—'}</td>
-                <td style={{ padding: '8px', color: low ? 'red' : '#222' }}>
-                  {qty} {low ? '⚠️' : ''}
-                </td>
+                <td style={{ padding: '8px', color: '#888' }}>{p.barcode || '-'}</td>
+                <td style={{ padding: '8px', color: low ? 'red' : '#222' }}>{qty} {low ? '(low)' : ''}</td>
                 <td style={{ padding: '8px', textAlign: 'right' }}>
                   {isConfirming ? (
                     <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: '#e74c3c' }}>Delete permanently?</span>
-                      <button
-                        onClick={() => handleDeleteProduct(p)}
-                        disabled={isDeleting}
-                        style={{
-                          padding: '4px 10px',
-                          backgroundColor: '#e74c3c',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: isDeleting ? 'default' : 'pointer',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {isDeleting ? 'Deleting...' : 'Yes, delete'}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        disabled={isDeleting}
-                        style={{
-                          padding: '4px 10px',
-                          backgroundColor: '#ccc',
-                          color: '#333',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                        }}
-                      >
-                        Cancel
-                      </button>
+                      <span style={{ fontSize: '12px', color: '#e74c3c' }}>Delete permanently, including past sales?</span>
+                      <button onClick={() => handleDeleteProduct(p)} disabled={isDeleting} style={{ padding: '4px 10px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: isDeleting ? 'default' : 'pointer', fontSize: '12px' }}>{isDeleting ? 'Deleting...' : 'Yes, delete'}</button>
+                      <button onClick={() => setConfirmDeleteId(null)} disabled={isDeleting} style={{ padding: '4px 10px', backgroundColor: '#ccc', color: '#333', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
                     </span>
                   ) : (
-                    <button
-                      onClick={() => setConfirmDeleteId(p.id)}
-                      style={{
-                        padding: '4px 10px',
-                        backgroundColor: 'transparent',
-                        color: '#e74c3c',
-                        border: '1px solid #e74c3c',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                      }}
-                    >
-                      Delete
-                    </button>
+                    <button onClick={() => setConfirmDeleteId(p.id)} style={{ padding: '4px 10px', backgroundColor: 'transparent', color: '#e74c3c', border: '1px solid #e74c3c', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Delete</button>
                   )}
                 </td>
               </tr>
