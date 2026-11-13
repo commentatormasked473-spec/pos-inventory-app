@@ -3,236 +3,218 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getCurrentAppUser } from '@/lib/auth'
+import { getCurrentAppUser, logout } from '@/lib/auth'
 
 export default function ReportsPage() {
   const [businessId, setBusinessId] = useState(null)
-  const [period, setPeriod] = useState('today')
-  const [branches, setBranches] = useState([])
-  const [branchFilter, setBranchFilter] = useState('all')
-  const [sales, setSales] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState(null)
   const [authorized, setAuthorized] = useState(false)
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [month, setMonth] = useState(new Date().getMonth() + 1)
+  const [archive, setArchive] = useState(null)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [selectedDate, setSelectedDate] = useState('')
+  const [dailySales, setDailySales] = useState([])
   const router = useRouter()
 
   useEffect(() => {
     getCurrentAppUser().then((u) => {
-      if (!u || u.role !== 'owner') {
+      if (!u) {
+        router.push('/login')
+        return
+      }
+      if (u.role === 'cashier') {
         router.push('/checkout')
         return
       }
       setBusinessId(u.business_id)
+      setRole(u.role)
       setAuthorized(true)
     })
   }, [])
 
-  const fetchBranches = async () => {
-    const { data } = await supabase
-      .from('branches')
-      .select('id, name')
-      .eq('business_id', businessId)
-      .order('name')
-    setBranches(data || [])
-  }
-
-  const fetchSales = async () => {
+  const generateAndLoadMonth = async () => {
+    if (!businessId) return
     setLoading(true)
-    const now = new Date()
-    let startDate = new Date()
+    setMessage('')
 
-    if (period === 'today') {
-      startDate.setHours(0, 0, 0, 0)
-    } else if (period === 'week') {
-      startDate.setDate(now.getDate() - 7)
-    } else if (period === 'month') {
-      startDate.setDate(now.getDate() - 30)
-    } else if (period === 'year') {
-      startDate.setDate(now.getDate() - 365)
+    // 1. Generate / update the archive on the server
+    const { error: genError } = await supabase.rpc('generate_monthly_financial_archive', {
+      p_business_id: businessId,
+      p_year: year,
+      p_month: month,
+    })
+
+    if (genError) {
+      setMessage('Error generating report: ' + genError.message)
+      setLoading(false)
+      return
     }
 
-    let query = supabase
-      .from('sales')
-      .select(`
-        id,
-        total,
-        payment_method,
-        created_at,
-        branch_id,
-        sale_items (
-          quantity,
-          unit_price,
-          product_id,
-          products ( name, cost_price )
-        )
-      `)
+    // 2. Load the saved archive
+    const { data, error } = await supabase
+      .from('monthly_financial_archives')
+      .select('*')
       .eq('business_id', businessId)
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: false })
+      .eq('year', year)
+      .eq('month', month)
+      .single()
 
-    if (branchFilter !== 'all') {
-      query = query.eq('branch_id', branchFilter)
+    if (error) {
+      setMessage('Could not load archive: ' + error.message)
+    } else {
+      setArchive(data)
+      setMessage('Report ready (saved permanently in archives)')
     }
-
-    const { data, error } = await query
-
-    if (!error) setSales(data)
     setLoading(false)
   }
 
-  useEffect(() => {
-    if (authorized && businessId) fetchBranches()
-  }, [authorized, businessId])
+  const loadDailyReport = async () => {
+    if (!selectedDate || !businessId) return
+    setLoading(true)
+    setMessage('')
 
-  useEffect(() => {
-    if (authorized && businessId) fetchSales()
-  }, [period, branchFilter, authorized, businessId])
+    const start = new Date(selectedDate)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(selectedDate)
+    end.setHours(23, 59, 59, 999)
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0)
-  const totalSalesCount = sales.length
+    const { data, error } = await supabase
+      .from('sales')
+      .select(`
+        id, created_at, total, payment_method,
+        sale_items (
+          quantity, unit_price,
+          products ( name )
+        )
+      `)
+      .eq('business_id', businessId)
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString())
+      .order('created_at')
 
-  const productStats = {}
-  let totalProfit = 0
-
-  sales.forEach((sale) => {
-    sale.sale_items.forEach((item) => {
-      const name = item.products?.name || 'Unknown'
-      const cost = item.products?.cost_price || 0
-      const revenue = item.unit_price * item.quantity
-      const profit = (item.unit_price - cost) * item.quantity
-
-      totalProfit += profit
-
-      if (!productStats[name]) {
-        productStats[name] = { name, unitsSold: 0, revenue: 0 }
-      }
-      productStats[name].unitsSold += item.quantity
-      productStats[name].revenue += revenue
-    })
-  })
-
-  const productList = Object.values(productStats).sort((a, b) => b.unitsSold - a.unitsSold)
-  const bestSellers = productList.slice(0, 3)
-  const slowSellers = [...productList].sort((a, b) => a.unitsSold - b.unitsSold).slice(0, 3)
-
-  const paymentBreakdown = {}
-  sales.forEach((s) => {
-    paymentBreakdown[s.payment_method] = (paymentBreakdown[s.payment_method] || 0) + s.total
-  })
-
-  // Group sales by calendar date for the daily breakdown table
-  const dailyBreakdown = {}
-  sales.forEach((s) => {
-    const dateKey = new Date(s.created_at).toLocaleDateString('en-GB', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-    if (!dailyBreakdown[dateKey]) {
-      dailyBreakdown[dateKey] = { date: dateKey, total: 0, count: 0, sortKey: new Date(s.created_at).setHours(0, 0, 0, 0) }
+    if (error) {
+      setMessage('Error loading day: ' + error.message)
+      setDailySales([])
+    } else {
+      setDailySales(data || [])
+      setMessage(data?.length ? `Found ${data.length} sale(s) on ${selectedDate}` : `No sales on ${selectedDate}`)
     }
-    dailyBreakdown[dateKey].total += s.total
-    dailyBreakdown[dateKey].count += 1
-  })
-  const dailyList = Object.values(dailyBreakdown).sort((a, b) => b.sortKey - a.sortKey)
-
-  if (!authorized) return <p style={{ padding: '40px' }}>Checking access...</p>
-
-  if (loading) {
-    return <p style={{ padding: '40px' }}>Loading...</p>
+    setLoading(false)
   }
 
+  if (!authorized) return <p style={{ padding: 40 }}>Checking access...</p>
+
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif', maxWidth: '800px' }}>
-      <h1>Sales Reports</h1>
+    <div style={{ padding: 40, fontFamily: 'sans-serif', maxWidth: 900 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Reports & Archives</h1>
+        <button
+          onClick={logout}
+          style={{ padding: '8px 16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: 6 }}
+        >
+          Log Out
+        </button>
+      </div>
 
-      <div style={{ marginBottom: '15px' }}>
-        {['today', 'week', 'month', 'year'].map((p) => (
+      {/* MONTHLY P&L */}
+      <section style={{ marginTop: 30, padding: 20, border: '1px solid #ddd', borderRadius: 8 }}>
+        <h2>Monthly Profit / Loss Archive</h2>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '15px 0' }}>
+          <label>
+            Year:{' '}
+            <input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value) || year)}
+              style={{ width: 80, padding: 6 }}
+            />
+          </label>
+          <label>
+            Month:{' '}
+            <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} style={{ padding: 6 }}>
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {new Date(2000, i, 1).toLocaleString('default', { month: 'long' })}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            style={{
-              padding: '8px 16px',
-              marginRight: '10px',
-              backgroundColor: period === p ? '#1a73e8' : '#eee',
-              color: period === p ? 'white' : 'black',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
+            onClick={generateAndLoadMonth}
+            disabled={loading}
+            style={{ padding: '8px 18px', background: '#1a73e8', color: 'white', border: 'none', borderRadius: 6 }}
           >
-            {p === 'today' ? 'Today' : p === 'week' ? 'Last 7 Days' : p === 'month' ? 'Last 30 Days' : 'This Year'}
+            {loading ? 'Working...' : 'Generate / View Archive'}
           </button>
-        ))}
-      </div>
-
-      <label style={{ display: 'block', marginBottom: '20px' }}>
-        Branch:{' '}
-        <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} style={{ padding: '6px' }}>
-          <option value="all">All Branches</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </label>
-
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px' }}>
-          <p style={{ margin: 0, color: '#666' }}>Total Revenue</p>
-          <h2 style={{ margin: '5px 0' }}>KES {totalRevenue.toFixed(2)}</h2>
         </div>
-        <div style={{ flex: 1, padding: '15px', backgroundColor: '#f0fff5', borderRadius: '8px' }}>
-          <p style={{ margin: 0, color: '#666' }}>Estimated Profit</p>
-          <h2 style={{ margin: '5px 0' }}>KES {totalProfit.toFixed(2)}</h2>
-        </div>
-        <div style={{ flex: 1, padding: '15px', backgroundColor: '#fff8f0', borderRadius: '8px' }}>
-          <p style={{ margin: 0, color: '#666' }}>Number of Sales</p>
-          <h2 style={{ margin: '5px 0' }}>{totalSalesCount}</h2>
-        </div>
-      </div>
 
-      <h2>Sales By Date</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-            <th style={{ padding: '8px' }}>Date</th>
-            <th style={{ padding: '8px' }}>Sales Made</th>
-            <th style={{ padding: '8px' }}>Total (KES)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dailyList.map((d) => (
-            <tr key={d.date} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '8px' }}>{d.date}</td>
-              <td style={{ padding: '8px' }}>{d.count}</td>
-              <td style={{ padding: '8px' }}>{d.total.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {archive && (
+          <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 6 }}>
+            <h3>
+              {new Date(archive.year, archive.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </h3>
+            <p>Total Sales: <strong>KES {Number(archive.total_sales).toLocaleString()}</strong></p>
+            <p>Refunds: <strong>KES {Number(archive.total_refunds).toLocaleString()}</strong></p>
+            <p>Net Revenue: <strong>KES {Number(archive.net_revenue).toLocaleString()}</strong></p>
+            <p>Total Expenses: <strong>KES {Number(archive.total_expenses).toLocaleString()}</strong></p>
+            <p style={{ fontSize: 18, marginTop: 10 }}>
+              Net Profit / Loss:{' '}
+              <strong style={{ color: archive.net_profit >= 0 ? 'green' : 'red' }}>
+                KES {Number(archive.net_profit).toLocaleString()}
+              </strong>
+            </p>
+            <p style={{ color: '#666', fontSize: 13 }}>
+              Saved permanently on {new Date(archive.generated_at).toLocaleString()} — available for 10+ years
+            </p>
+          </div>
+        )}
+      </section>
 
-      <h2>Payment Method Breakdown</h2>
-      {Object.entries(paymentBreakdown).map(([method, amount]) => (
-        <div key={method} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-          <span style={{ textTransform: 'capitalize' }}>{method}</span>
-          <span>KES {amount.toFixed(2)}</span>
+      {/* DAILY HISTORICAL REPORT */}
+      <section style={{ marginTop: 40, padding: 20, border: '1px solid #ddd', borderRadius: 8 }}>
+        <h2>Daily Sales Report (any day, even 10 years ago)</h2>
+        <p style={{ color: '#666' }}>
+          Pick any date. If the day is older than one year the system still shows the full original sales.
+        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '15px 0' }}>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={{ padding: 8 }}
+          />
+          <button
+            onClick={loadDailyReport}
+            disabled={loading || !selectedDate}
+            style={{ padding: '8px 18px', background: '#00b386', color: 'white', border: 'none', borderRadius: 6 }}
+          >
+            Load Day Report
+          </button>
         </div>
-      ))}
 
-      <h2 style={{ marginTop: '30px' }}>Best Sellers</h2>
-      {bestSellers.map((p) => (
-        <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-          <span>{p.name}</span>
-          <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
-        </div>
-      ))}
+        {dailySales.length > 0 && (
+          <div>
+            {dailySales.map((sale) => (
+              <div key={sale.id} style={{ borderBottom: '1px solid #eee', padding: '10px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>KES {sale.total}</strong>
+                  <span>{new Date(sale.created_at).toLocaleTimeString()}</span>
+                </div>
+                <div style={{ color: '#666' }}>Paid: {sale.payment_method}</div>
+                {sale.sale_items?.map((item, idx) => (
+                  <div key={idx} style={{ fontSize: 14 }}>
+                    {item.products?.name} × {item.quantity} @ {item.unit_price}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-      <h2 style={{ marginTop: '30px' }}>Slow Sellers</h2>
-      {slowSellers.map((p) => (
-        <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-          <span>{p.name}</span>
-          <span>{p.unitsSold} units — KES {p.revenue.toFixed(2)}</span>
-        </div>
-      ))}
+      <p style={{ marginTop: 20 }}>{message}</p>
     </div>
   )
 }
