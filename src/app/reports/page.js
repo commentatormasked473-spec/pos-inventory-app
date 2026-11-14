@@ -86,7 +86,7 @@ export default function ReportsPage() {
         id, created_at, total, payment_method,
         sale_items (
           quantity, unit_price,
-          products ( name )
+          products ( name, cost_price )
         )
       `)
       .eq('business_id', businessId)
@@ -103,6 +103,13 @@ export default function ReportsPage() {
     }
     setLoading(false)
   }
+
+  const dayTotalSold = dailySales.reduce((sum, s) => sum + Number(s.total || 0), 0)
+  const dayCostOfGoods = dailySales.reduce(
+    (sum, s) => sum + (s.sale_items || []).reduce((n, i) => n + Number(i.quantity || 0) * Number(i.products?.cost_price || 0), 0),
+    0
+  )
+  const dayProfit = dayTotalSold - dayCostOfGoods
 
   if (!authorized) return <p style={{ padding: 40 }}>Checking access...</p>
 
@@ -194,6 +201,26 @@ export default function ReportsPage() {
           </button>
         </div>
 
+        {dailySales.length > 0 && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+            <div style={{ flex: 1, minWidth: 150, padding: 14, background: '#f0f7ff', borderRadius: 8 }}>
+              <div style={{ color: '#666', fontSize: 13 }}>Total Sold</div>
+              <strong style={{ fontSize: 20 }}>KES {dayTotalSold.toLocaleString()}</strong>
+            </div>
+            <div style={{ flex: 1, minWidth: 150, padding: 14, background: '#fff8f0', borderRadius: 8 }}>
+              <div style={{ color: '#666', fontSize: 13 }}>Cost of Goods Sold</div>
+              <strong style={{ fontSize: 20 }}>KES {dayCostOfGoods.toLocaleString()}</strong>
+            </div>
+            <div style={{ flex: 1, minWidth: 150, padding: 14, background: '#f0fff5', borderRadius: 8 }}>
+              <div style={{ color: '#666', fontSize: 13 }}>Estimated Profit</div>
+              <strong style={{ fontSize: 20, color: dayProfit >= 0 ? 'green' : 'red' }}>KES {dayProfit.toLocaleString()}</strong>
+            </div>
+            <div style={{ flex: 1, minWidth: 150, padding: 14, background: '#f7f7f7', borderRadius: 8 }}>
+              <div style={{ color: '#666', fontSize: 13 }}>Number of Sales</div>
+              <strong style={{ fontSize: 20 }}>{dailySales.length}</strong>
+            </div>
+          </div>
+        )}
         {dailySales.length > 0 && (
           <div>
             {dailySales.map((sale) => (
