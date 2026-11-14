@@ -157,7 +157,7 @@ export default function ReportsPage() {
             </h3>
             <p>Total Sales: <strong>KES {Number(archive.total_sales).toLocaleString()}</strong></p>
             <p>Refunds: <strong>KES {Number(archive.total_refunds).toLocaleString()}</strong></p>
-            <p>Net Revenue: <strong>KES {Number(archive.net_revenue).toLocaleString()}</strong></p>
+            <p>Gross Profit: <strong>KES {Number(archive.net_revenue).toLocaleString()}</strong></p>
             <p>Total Expenses: <strong>KES {Number(archive.total_expenses).toLocaleString()}</strong></p>
             <p style={{ fontSize: 18, marginTop: 10 }}>
               Net Profit / Loss:{' '}
