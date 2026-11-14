@@ -110,6 +110,7 @@ export default function ReportsPage() {
     0
   )
   const dayProfit = dayTotalSold - dayCostOfGoods
+  const byMethod = (m) => dailySales.filter((s) => s.payment_method === m).reduce((sum, s) => sum + Number(s.total || 0), 0)
 
   if (!authorized) return <p style={{ padding: 40 }}>Checking access...</p>
 
@@ -218,6 +219,29 @@ export default function ReportsPage() {
             <div style={{ flex: 1, minWidth: 150, padding: 14, background: '#f7f7f7', borderRadius: 8 }}>
               <div style={{ color: '#666', fontSize: 13 }}>Number of Sales</div>
               <strong style={{ fontSize: 20 }}>{dailySales.length}</strong>
+            </div>
+          </div>
+        )}
+        {dailySales.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ color: '#666', fontSize: 13, marginBottom: 8 }}>Money by payment method</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 130, padding: 14, background: '#f0fff5', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>Cash</div>
+                <strong style={{ fontSize: 18 }}>KES {byMethod('cash').toLocaleString()}</strong>
+              </div>
+              <div style={{ flex: 1, minWidth: 130, padding: 14, background: '#f0f7ff', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>M-Pesa</div>
+                <strong style={{ fontSize: 18 }}>KES {byMethod('mpesa').toLocaleString()}</strong>
+              </div>
+              <div style={{ flex: 1, minWidth: 130, padding: 14, background: '#f7f4ff', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>Bank</div>
+                <strong style={{ fontSize: 18 }}>KES {byMethod('bank').toLocaleString()}</strong>
+              </div>
+              <div style={{ flex: 1, minWidth: 130, padding: 14, background: '#fff3f3', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>Credit (owed)</div>
+                <strong style={{ fontSize: 18, color: '#c0392b' }}>KES {byMethod('credit').toLocaleString()}</strong>
+              </div>
             </div>
           </div>
         )}
