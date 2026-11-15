@@ -75,10 +75,7 @@ export default function ReportsPage() {
     setLoading(true)
     setMessage('')
 
-    const start = new Date(selectedDate)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(selectedDate)
-    end.setHours(23, 59, 59, 999)
+    const start = new Date(selectedDate + 'T00:00:00+03:00'); const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
 
     const { data, error } = await supabase
       .from('sales')
@@ -91,8 +88,8 @@ export default function ReportsPage() {
       `)
       .eq('business_id', businessId)
       .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at')
+      .lt('created_at', end.toISOString())
+      .order('created_at', { ascending: true })
 
     if (error) {
       setMessage('Error loading day: ' + error.message)
@@ -251,7 +248,7 @@ export default function ReportsPage() {
               <div key={sale.id} style={{ borderBottom: '1px solid #eee', padding: '10px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <strong>KES {sale.total}</strong>
-                  <span>{new Date(sale.created_at).toLocaleTimeString()}</span>
+                  <span>{new Date(sale.created_at).toLocaleTimeString('en-GB', { hourCycle: 'h23', timeZone: 'Africa/Nairobi' })}</span>
                 </div>
                 <div style={{ color: '#666' }}>Paid: {sale.payment_method}</div>
                 {sale.sale_items?.map((item, idx) => (

@@ -200,7 +200,7 @@ export default function CheckoutPage() {
         cashier_id: saleData.cashierId,
         total: saleData.total,
         payment_method: saleData.paymentMethod,
-        created_at: saleData.createdAt,
+        created_at: Date.now() - new Date(saleData.createdAt).getTime() > 120000 ? saleData.createdAt : undefined,
       })
       .select()
       .single()

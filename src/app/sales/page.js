@@ -77,17 +77,16 @@ export default function SalesPage() {
         )
       `)
       .eq('business_id', businessId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: role === 'cashier' || period === 'today' })
 
     if (role === 'cashier') {
-      const startOfToday = new Date()
-      startOfToday.setHours(0, 0, 0, 0)
+      const startOfToday = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) + 'T00:00:00+03:00')
       query = query.eq('cashier_id', userId).gte('created_at', startOfToday.toISOString())
     } else {
       const now = new Date()
       let startDate = new Date()
       if (period === 'today') {
-        startDate.setHours(0, 0, 0, 0)
+        startDate = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) + 'T00:00:00+03:00')
       } else if (period === 'week') {
         startDate.setDate(now.getDate() - 7)
       } else if (period === 'month') {
@@ -231,7 +230,7 @@ export default function SalesPage() {
         <div key={sale.id} style={{ border: '1px solid #eee', borderRadius: '8px', padding: '15px', marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <strong>KES {sale.total}</strong>
-            <span>{new Date(sale.created_at).toLocaleString()}</span>
+            <span>{new Date(sale.created_at).toLocaleString('en-GB', { hourCycle: 'h23', timeZone: 'Africa/Nairobi' })}</span>
           </div>
           <p style={{ color: '#666', margin: '4px 0' }}>Paid via: {sale.payment_method}</p>
           {sale.sale_items.map((item) => {
