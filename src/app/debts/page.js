@@ -33,7 +33,7 @@ export default function DebtsPage() {
         status,
         created_at,
         customers ( name, phone, business_id ),
-        credit_payments ( amount, paid_at )
+        credit_payments ( amount, paid_at, payment_method )
       `)
       .order('created_at', { ascending: false })
 
@@ -107,7 +107,7 @@ export default function DebtsPage() {
                 <p style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>Payment history:</p>
                 {debt.credit_payments.map((p, i) => (
                   <div key={i} style={{ fontSize: '13px', color: '#333' }}>
-                    KES {p.amount} on {new Date(p.paid_at).toLocaleDateString()}
+                    KES {p.amount} by {({ cash: 'Cash', mpesa: 'M-Pesa', bank: 'Bank' })[p.payment_method] || p.payment_method} on {new Date(p.paid_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Nairobi' })}
                   </div>
                 ))}
               </div>

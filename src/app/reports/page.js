@@ -16,6 +16,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [dailySales, setDailySales] = useState([])
+  const [creditPayments, setCreditPayments] = useState([])
+  const [creditOwed, setCreditOwed] = useState(0)
   const router = useRouter()
 
   useEffect(() => {
@@ -93,9 +95,18 @@ export default function ReportsPage() {
 
     if (error) {
       setMessage('Error loading day: ' + error.message)
-      setDailySales([])
+      setDailySales([]); setCreditPayments([])
     } else {
       setDailySales(data || [])
+      const { data: payData } = await supabase
+        .from('credit_payments')
+        .select('amount, payment_method, paid_at, credit_accounts ( customers ( name ) )')
+        .gte('paid_at', start.toISOString())
+        .lt('paid_at', end.toISOString())
+        .order('paid_at', { ascending: true })
+      setCreditPayments(payData || [])
+      const { data: owedData } = await supabase.from('credit_accounts').select('amount_owed, amount_paid')
+      setCreditOwed((owedData || []).reduce((sum, d) => sum + (Number(d.amount_owed) - Number(d.amount_paid)), 0))
       setMessage(data?.length ? `Found ${data.length} sale(s) on ${selectedDate}` : `No sales on ${selectedDate}`)
     }
     setLoading(false)
@@ -107,7 +118,7 @@ export default function ReportsPage() {
     0
   )
   const dayProfit = dayTotalSold - dayCostOfGoods
-  const byMethod = (m) => dailySales.filter((s) => s.payment_method === m).reduce((sum, s) => sum + Number(s.total || 0), 0)
+  const byMethod = (m) => dailySales.filter((s) => s.payment_method === m).reduce((sum, s) => sum + Number(s.total || 0), 0) + creditPayments.filter((c) => c.payment_method === m).reduce((sum, c) => sum + Number(c.amount || 0), 0)
 
   if (!authorized) return <p style={{ padding: 40 }}>Checking access...</p>
 
@@ -236,10 +247,35 @@ export default function ReportsPage() {
                 <strong style={{ fontSize: 18 }}>KES {byMethod('bank').toLocaleString()}</strong>
               </div>
               <div style={{ flex: 1, minWidth: 130, padding: 14, background: '#fff3f3', borderRadius: 8 }}>
-                <div style={{ color: '#666', fontSize: 13 }}>Credit (owed)</div>
+                <div style={{ color: '#666', fontSize: 13 }}>Credit sold today</div>
                 <strong style={{ fontSize: 18, color: '#c0392b' }}>KES {byMethod('credit').toLocaleString()}</strong>
               </div>
             </div>
+          </div>
+        )}
+        {(creditPayments.length > 0 || dailySales.length > 0) && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+              <div style={{ flex: 1, minWidth: 180, padding: 14, background: '#f0fff5', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>Debts collected today</div>
+                <strong style={{ fontSize: 18 }}>KES {creditPayments.reduce((sum, c) => sum + Number(c.amount || 0), 0).toLocaleString()}</strong>
+              </div>
+              <div style={{ flex: 1, minWidth: 180, padding: 14, background: '#fff3f3', borderRadius: 8 }}>
+                <div style={{ color: '#666', fontSize: 13 }}>Credit still owed (all customers)</div>
+                <strong style={{ fontSize: 18, color: '#c0392b' }}>KES {creditOwed.toLocaleString()}</strong>
+              </div>
+            </div>
+            {creditPayments.length > 0 && (
+              <div>
+                <div style={{ color: '#666', fontSize: 13, marginBottom: 6 }}>Money received from goods sold on credit</div>
+                {creditPayments.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee', fontSize: 14 }}>
+                    <span>{new Date(c.paid_at).toLocaleTimeString('en-GB', { hourCycle: 'h23', timeZone: 'Africa/Nairobi' })} - {c.credit_accounts?.customers?.name || 'Customer'} ({({ cash: 'Cash', mpesa: 'M-Pesa', bank: 'Bank' })[c.payment_method] || c.payment_method})</span>
+                    <strong>KES {Number(c.amount).toLocaleString()}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {dailySales.length > 0 && (
