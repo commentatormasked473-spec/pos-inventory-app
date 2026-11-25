@@ -85,7 +85,7 @@ export default function ReportsPage() {
         id, created_at, total, payment_method,
         sale_items (
           quantity, unit_price,
-          products ( name, cost_price )
+          products ( name, cost_price ), refunds ( quantity )
         )
       `)
       .eq('business_id', businessId)
@@ -114,7 +114,7 @@ export default function ReportsPage() {
 
   const dayTotalSold = dailySales.reduce((sum, s) => sum + Number(s.total || 0), 0)
   const dayCostOfGoods = dailySales.reduce(
-    (sum, s) => sum + (s.sale_items || []).reduce((n, i) => n + Number(i.quantity || 0) * Number(i.products?.cost_price || 0), 0),
+    (sum, s) => sum + (s.sale_items || []).reduce((n, i) => n + (Number(i.quantity || 0) - (i.refunds || []).reduce((r, x) => r + Number(x.quantity || 0), 0)) * Number(i.products?.cost_price || 0), 0),
     0
   )
   const dayProfit = dayTotalSold - dayCostOfGoods
